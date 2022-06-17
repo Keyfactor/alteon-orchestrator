@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.32413.511
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "alteon-orchestrator", "alteon-orchestrator\alteon-orchestrator.csproj", "{E3D51525-B1FB-4B14-B7AD-0430A8718DEE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E3D51525-B1FB-4B14-B7AD-0430A8718DEE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E3D51525-B1FB-4B14-B7AD-0430A8718DEE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E3D51525-B1FB-4B14-B7AD-0430A8718DEE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E3D51525-B1FB-4B14-B7AD-0430A8718DEE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {3D825B31-0AC1-42FB-A838-8EDEE5DDC399}
+	EndGlobalSection
+EndGlobal

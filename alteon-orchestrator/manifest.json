@@ -1,0 +1,18 @@
+{
+  "extensions": {
+    "Keyfactor.Orchestrators.Extensions.IOrchestratorJobExtension": {
+      "CertStores.AlteonLB.Inventory": {
+        "assemblypath": "Keyfactor.Extensions.Orchestrator.AlteonLB.dll",
+        "TypeFullName": "Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs.Inventory"
+      },
+      "CertStores.AlteonLB.Discovery": {
+        "assemblypath": "Keyfactor.Extensions.Orchestrator.AlteonLB.dll",
+        "TypeFullName": "Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs.Discovery"
+      },
+      "CertStores.AlteonLB.Management": {
+        "assemblypath": "Keyfactor.Extensions.Orchestrator.AlteonLB.dll",
+        "TypeFullName": "Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs.Management"
+      }
+    }
+  }
+}

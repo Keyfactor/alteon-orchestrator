@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <RootNamespace>Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer</RootNamespace>
+    <AssemblyName>Keyfactor.Extensions.Orchestrator.AlteonLB</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Keyfactor.Logging" Version="1.1.1" />
+    <PackageReference Include="Keyfactor.Orchestrators.Common" Version="3.1.2" />
+    <PackageReference Include="Keyfactor.Orchestrators.IOrchestratorJobExtensions" Version="0.6.0" />
+    <PackageReference Include="Keyfactor.Orchestrators.IOrchestratorRegistrationUpdater" Version="1.0.3" />
+    <PackageReference Include="NLog" Version="5.0.1" />
+    <PackageReference Include="NLog.Extensions.Logging" Version="5.0.0" />
+    <PackageReference Include="RestSharp" Version="108.0.1" />
+    <PackageReference Include="System.Linq" Version="4.3.0" />
+  </ItemGroup>
+
+</Project>
