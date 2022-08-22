@@ -1,4 +1,7 @@
 ﻿using System;
+using System.IO;
+using System.Net;
+using System.Text;
 using System.Threading.Tasks;
 using Keyfactor.Logging;
 using Microsoft.Extensions.Logging;
@@ -14,23 +17,47 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
 
         public AlteonLoadBalancerClient(string baseUrl, string username, string password)
         {
-            _restClient = new RestClient(baseUrl);
+            var options = new RestClientOptions(baseUrl)
+            {
+                RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true
+            };
+            _restClient = new RestClient(options);
+
             _restClient.Authenticator = new HttpBasicAuthenticator(username, password);
         }
 
         public async Task<CertificateTableEntryCollection> GetCertificates()
         {
-            var request = new RestRequest("SlbNewSslCfgCertsTable", Method.Get);
+            var request = new RestRequest(Endpoints.CertificateRepository);
             try
             {
-                var response = await _restClient.ExecuteAsync<CertificateTableEntryCollection>(request);
-                return response.Data;
+                var response = await _restClient.GetAsync<CertificateTableEntryCollection>(request);
+                return response;
             }
             catch (Exception ex)
             {
                 logger.LogError(ex.Message, ex);
                 throw;
             }
-        }        
+        }
+
+        public string GetCertificateContent(string certId)
+        {
+            var request = new RestRequest(Endpoints.CertificateContent);
+            request.AddQueryParameter("id", certId);
+            request.AddQueryParameter("type", "srvcrt");
+            try
+            {
+                var response = _restClient.DownloadData(request);
+                var sr = new StreamReader(new MemoryStream(response), Encoding.UTF8);
+                var content = sr.ReadToEnd();
+                return content;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex.Message, ex);
+                throw;
+            }
+        }
     }
 }

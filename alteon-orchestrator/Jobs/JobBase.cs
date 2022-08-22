@@ -23,8 +23,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
 
         public void InitializeStore(InventoryJobConfiguration config)
-        {
-            //var props = JsonConvert.DeserializeObject(config.CertificateStoreDetails.Properties);
+        {            
             ServerUrl = config.CertificateStoreDetails.ClientMachine;
             Username = config.ServerUsername;
             Password = config.ServerPassword;

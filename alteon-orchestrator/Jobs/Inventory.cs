@@ -18,17 +18,31 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
     public class Inventory : JobBase, IInventoryJobExtension
     {
         ILogger logger = LogHandler.GetClassLogger<Inventory>();
-
-        AlteonLoadBalancerClient aClient;
+              
 
         public JobResult ProcessJob(InventoryJobConfiguration config, SubmitInventoryUpdate submitInventoryUpdate)
         {
             InitializeStore(config);
 
-            IEnumerable<CurrentInventoryItem> certs = null;
+            List<CurrentInventoryItem> certs = new List<CurrentInventoryItem>();
             try
             {
-                var tableCerts = aClient.GetCertificates();
+                var tableCerts = aClient.GetCertificates().Result;
+                //"Generate" indicates whether a cert actually exists, or just the entry.  5 means it exists.
+                var certsOnly = tableCerts.SlbNewSslCfgCertsTable.Where(c => c.Type == 3 && c.Generate == 5).ToList();
+                var keysOnly = tableCerts.SlbNewSslCfgCertsTable.Where(c => c.Type == 1);
+
+                certsOnly.ForEach(certEntry => {
+                    var certStrings = new List<string>();
+                    var certContent = aClient.GetCertificateContent(certEntry.ID);
+
+                    certs.Add(new CurrentInventoryItem()
+                    {
+                        Alias = certEntry.ID,
+                        Certificates = new List<string>() { certContent },
+                        PrivateKeyEntry = keysOnly.Any(k => k.ID == certEntry.ID)
+                    });
+                });
             }
             catch (Exception ex)
             {
@@ -41,7 +55,6 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                     FailureMessage = ex.Message
                 };
             }
-
             var success = submitInventoryUpdate.Invoke(certs.ToList());
 
             return new JobResult

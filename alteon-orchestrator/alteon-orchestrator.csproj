@@ -1,9 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+		<TargetFramework>netstandard2.0</TargetFramework>
     <RootNamespace>Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer</RootNamespace>
     <AssemblyName>Keyfactor.Extensions.Orchestrator.AlteonLB</AssemblyName>
+		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+		<SignAssembly>false</SignAssembly>
+		<Copyright />
+		<AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,6 +21,12 @@
     <PackageReference Include="NLog.Extensions.Logging" Version="5.0.0" />
     <PackageReference Include="RestSharp" Version="108.0.1" />
     <PackageReference Include="System.Linq" Version="4.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="manifest.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
