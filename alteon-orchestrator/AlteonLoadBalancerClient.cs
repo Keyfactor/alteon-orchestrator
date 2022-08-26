@@ -59,5 +59,29 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
                 throw;
             }
         }
+
+        public async Task AddCertificate(string alias, string pfxPassword, string certContents, string type)
+        {
+            var request = new RestRequest(Endpoints.AddCertificate, Method.Post);
+            request.AddQueryParameter("id", alias);
+            request.AddQueryParameter("type", type);
+            request.AddQueryParameter("passphrase", pfxPassword);
+            request.AddQueryParameter("src", "txt");
+
+            request.AddBody(certContents);
+
+            try
+            {
+                var response = await _restClient.PostAsync(request);
+                if (!response.IsSuccessful) {
+                    throw new Exception($"Failed to add certificate: {alias}", response.ErrorException);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex.Message, ex);
+                throw;
+            }
+        }
     }
 }

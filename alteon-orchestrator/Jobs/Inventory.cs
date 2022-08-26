@@ -17,8 +17,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 {
     public class Inventory : JobBase, IInventoryJobExtension
     {
-        ILogger logger = LogHandler.GetClassLogger<Inventory>();
-              
+        ILogger logger = LogHandler.GetClassLogger<Inventory>();              
 
         public JobResult ProcessJob(InventoryJobConfiguration config, SubmitInventoryUpdate submitInventoryUpdate)
         {
