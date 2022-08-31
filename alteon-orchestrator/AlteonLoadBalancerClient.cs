@@ -41,6 +41,31 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             }
         }
 
+        public async Task<CertificateTableEntryCollection> GetCertificatesById(string id)
+        {
+            var url = $"{Endpoints.CertificateRepository}?filter=ID:{id}&filtertype=exact&props=ID,Type";
+            var request = new RestRequest(url);
+
+            // var request = new RestRequest(Endpoints.CertificateRepository);
+            // request.AddQueryParameter("filter", "ID");
+            // request.AddQueryParameter("filtertype", "exact");
+            // request.AddQueryParameter("props", "ID,Type");
+            // the filter above _should_ return only the certs and keys with that alias.  
+            // ...but it doesn't.  It returns any certs containing that string in the alias, so we have to filter the results.
+
+            try
+            {
+                var collection = await _restClient.GetAsync<CertificateTableEntryCollection>(request);
+                collection.SlbNewSslCfgCertsTable = collection.SlbNewSslCfgCertsTable.FindAll(c => c.ID == id);
+                return collection;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex.Message, ex);
+                throw;
+            }
+        }
+
         public string GetCertificateContent(string certId)
         {
             var request = new RestRequest(Endpoints.CertificateContent);
@@ -73,9 +98,39 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             try
             {
                 var response = await _restClient.PostAsync(request);
-                if (!response.IsSuccessful) {
+                if (!response.IsSuccessful)
+                {
                     throw new Exception($"Failed to add certificate: {alias}", response.ErrorException);
                 }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex.Message, ex);
+                throw;
+            }
+        }
+
+        internal async Task RemoveCertificate(string alias)
+        {
+            var existing = (await GetCertificatesById(alias)).SlbNewSslCfgCertsTable;
+            if (existing.Count == 0)
+            {
+                throw new Exception($"Certificate with alias {alias} not found.");
+            }
+            try
+            {
+                existing.ForEach(c =>
+                {
+                    var url = $"{Endpoints.CertificateRepository}/{c.ID}/{c.Type}";
+                    var request = new RestRequest(url, Method.Delete);
+
+                    var response = _restClient.DeleteAsync(request).Result;
+
+                    if (!response.IsSuccessful)
+                    {
+                        throw new Exception($"Failed to remove certificate: {alias}", response.ErrorException);
+                    }
+                });
             }
             catch (Exception ex)
             {

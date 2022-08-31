@@ -8,7 +8,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
@@ -39,48 +38,18 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
             switch (config.OperationType)
             {
-                //case CertStoreOperationType.Create:
-                //    logger.LogDebug($"Begin Management > Create...");
-                //    complete = PerformCreateVault(config.JobHistoryId).Result;
-                //    break;
                 case CertStoreOperationType.Add:
                     logger.LogDebug($"Begin Management > Add...");
                     complete = PerformAddition(config.JobCertificate.Alias, config.JobCertificate.PrivateKeyPassword, config.JobCertificate.Contents, config.JobHistoryId).Result;
                     break;
                 case CertStoreOperationType.Remove:
                     logger.LogDebug($"Begin Management > Remove...");
-                    complete = PerformRemoval(config.JobCertificate.Alias, config.JobHistoryId);
+                    complete = PerformRemoval(config.JobCertificate.Alias, config.JobHistoryId).Result;
                     break;
             }
 
             return complete;
         }
-
-        //protected async Task<JobResult> PerformCreateVault(long jobHistoryId)
-        //{
-        //    var jobResult = new JobResult() { JobHistoryId = jobHistoryId, Result = OrchestratorJobStatusJobResult.Failure };
-        //    bool createVaultResult;
-        //    try
-        //    {
-        //        createVaultResult = await VaultClient.CreateStore(StorePath, MountPoint);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        jobResult.FailureMessage = ex.Message;
-        //        return jobResult;
-        //    }
-
-        //    if (createVaultResult)
-        //    {
-        //        jobResult.Result = OrchestratorJobStatusJobResult.Success;
-        //    }
-        //    else
-        //    {
-        //        jobResult.FailureMessage = "The creation of the Azure Key Vault failed for an unknown reason. Check your job parameters and ensure permissions are correct.";
-        //    }
-
-        //    return jobResult;
-        //}
 
         protected virtual async Task<JobResult> PerformAddition(string alias, string pfxPassword, string entryContents, long jobHistoryId)
         {
@@ -160,7 +129,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
             return complete;
         }
 
-        protected virtual JobResult PerformRemoval(string alias, long jobHistoryId)
+        protected virtual async Task<JobResult> PerformRemoval(string alias, long jobHistoryId)
         {
             JobResult complete = new JobResult() { Result = OrchestratorJobStatusJobResult.Failure, JobHistoryId = jobHistoryId };
 
@@ -172,21 +141,13 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
             try
             {
-                //var success = VaultClient.DeleteCertificate(alias, StorePath, MountPoint).Result;
-                var success = false;
-                if (!success)
-                {
-                    complete.FailureMessage = $"Error removing {alias} from Vault";
-                }
-                else
-                {
-                    complete.Result = OrchestratorJobStatusJobResult.Success;
-                }
+                await aClient.RemoveCertificate(alias);
+                complete.Result = OrchestratorJobStatusJobResult.Success;                
             }
 
             catch (Exception ex)
             {
-                logger.LogError("Error deleting cert from Vault", ex);
+                logger.LogError("Error deleting cert from device.", ex);
                 complete.FailureMessage = $"An error occured while removing {alias} from {ExtensionName}: " + ex.Message;
             }
             return complete;
