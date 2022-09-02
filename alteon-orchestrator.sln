@@ -3,7 +3,18 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.32413.511
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "alteon-orchestrator", "alteon-orchestrator\alteon-orchestrator.csproj", "{E3D51525-B1FB-4B14-B7AD-0430A8718DEE}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "alteon-orchestrator", "alteon-orchestrator\alteon-orchestrator.csproj", "{E3D51525-B1FB-4B14-B7AD-0430A8718DEE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{583BA6E4-B528-45FE-B027-3ECE30FB7500}"
+	ProjectSection(SolutionItems) = preProject
+		readme_source.md = readme_source.md
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "images", "images", "{C6C2BDB3-1D29-4E41-900D-9F4C384D6089}"
+	ProjectSection(SolutionItems) = preProject
+		images\add-store-type.png = images\add-store-type.png
+		images\store-types-menu.png = images\store-types-menu.png
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -18,6 +29,9 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{C6C2BDB3-1D29-4E41-900D-9F4C384D6089} = {583BA6E4-B528-45FE-B027-3ECE30FB7500}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3D825B31-0AC1-42FB-A838-8EDEE5DDC399}
