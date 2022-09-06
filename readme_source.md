@@ -56,7 +56,7 @@ The steps to do this are:
 
 1) Click "ADD"
 
-     ![Approve Cert Store](/Images/add-cert-store-button.png)
+     ![Approve Cert Store](/images/add-cert-store-button.png)
 
 1) Enter the values corresponding to the Azure Keyvault instance.
 
