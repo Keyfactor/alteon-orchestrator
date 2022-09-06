@@ -7,12 +7,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "alteon-orchestrator", "alte
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{583BA6E4-B528-45FE-B027-3ECE30FB7500}"
 	ProjectSection(SolutionItems) = preProject
+		integration-manifest.json = integration-manifest.json
 		readme_source.md = readme_source.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "images", "images", "{C6C2BDB3-1D29-4E41-900D-9F4C384D6089}"
 	ProjectSection(SolutionItems) = preProject
+		images\add-cert-store-button.png = images\add-cert-store-button.png
 		images\add-store-type.png = images\add-store-type.png
+		images\alteon-certificate-store.png = images\alteon-certificate-store.png
 		images\store-types-menu.png = images\store-types-menu.png
 	EndProjectSection
 EndProject
