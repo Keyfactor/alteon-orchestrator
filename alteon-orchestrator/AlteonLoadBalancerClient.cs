@@ -14,7 +14,6 @@
 
 using System;
 using System.IO;
-using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using Keyfactor.Logging;
@@ -60,10 +59,6 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             var url = $"{Endpoints.CertificateRepository}?filter=ID:{id}&filtertype=exact&props=ID,Type";
             var request = new RestRequest(url);
 
-            // var request = new RestRequest(Endpoints.CertificateRepository);
-            // request.AddQueryParameter("filter", "ID");
-            // request.AddQueryParameter("filtertype", "exact");
-            // request.AddQueryParameter("props", "ID,Type");
             // the filter above _should_ return only the certs and keys with that alias.  
             // ...but it doesn't.  It returns any certs containing that string in the alias, so we have to filter the results.
 
