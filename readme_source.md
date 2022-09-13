@@ -30,6 +30,7 @@ Now we can navigate to the Keyfactor platform and create the store type for the 
 
      ![Cert Store Types Menu](/images/add-store-type.png)
 
+
 ### Install the Extension on the Orchestrator
 
 _The process for installing an extension for the universal orchestrator differs from the process of installing an extension for the Windows orchestrator.  Follow the below steps to register the integration with your instance of the universal orchestrator._
@@ -45,6 +46,7 @@ _The process for installing an extension for the universal orchestrator differs 
 1) Copy the build output (if you compiled from source) or the contents of the zip file (if you downloaded the pre-compiled binaries) into this folder.
 
 1) Start the Universal Orchestrator Service
+
 
 ### Create the certificate store
 
