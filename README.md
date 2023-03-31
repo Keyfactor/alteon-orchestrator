@@ -116,6 +116,10 @@ The steps to do this are:
 
   - Note: The server credentials will only have to be entered once, even if adding multiple certificate stores.  
     - Set the credentials to those of the account with sufficient permissions to manage certs in the Alteon Load Balancer.
+    - Check __Use SSL__
+    - The __Server Name__ should be the fully qualified URL and port of the Alteon Load Balancer instance.
+
+![Server Credentials](/images/client-credentials.png)
 
 - **Store Path**: This value isn't used for this integration (other than to uniquely identify the cert store in certificate searches).  
 
