@@ -30,6 +30,7 @@ Now we can navigate to the Keyfactor platform and create the store type for the 
 
      ![Cert Store Types Menu](/images/add-store-type.png)
 
+
 1) Set the following values on the __Advanced__ tab:
      1) **Supports Custom Alias** - Optional
      1) **Private Key Handling** - Optional
@@ -53,6 +54,7 @@ _The process for installing an extension for the universal orchestrator differs 
 1) Copy the build output (if you compiled from source) or the contents of the zip file (if you downloaded the pre-compiled binaries) into this folder.
 
 1) Start the Universal Orchestrator Service
+
 
 ### Create the certificate store
 
