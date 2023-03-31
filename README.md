@@ -12,7 +12,11 @@ The Universal Orchestrator is part of the Keyfactor software distribution and is
 
 The Universal Orchestrator is the successor to the Windows Orchestrator. This Capability plugin only works with the Universal Orchestrator and does not work with the Windows Orchestrator.
 
+
+
+
 ---
+
 
 
 
@@ -30,7 +34,9 @@ The Keyfactor Universal Orchestrator may be installed on either Windows or Linux
 
 
 
+
 ---
+
 
 ## Setup and Configuration
 
@@ -65,6 +71,14 @@ Now we can navigate to the Keyfactor platform and create the store type for the 
      ![Cert Store Types Menu](/images/add-store-type.png)
 
 
+1) Set the following values on the __Advanced__ tab:
+     1) **Supports Custom Alias** - Optional
+     1) **Private Key Handling** - Optional
+
+     ![Cert Store Types Advanced](/images/store-type-advanced.png)
+
+1) No changes are needed in the __Custom Fields__ and __Entry Parameters__ tabs.
+
 ### Install the Extension on the Orchestrator
 
 _The process for installing an extension for the universal orchestrator differs from the process of installing an extension for the Windows orchestrator.  Follow the below steps to register the integration with your instance of the universal orchestrator._
@@ -94,7 +108,7 @@ The steps to do this are:
 
      ![Approve Cert Store](/images/add-cert-store-button.png)
 
-1) Enter the values corresponding to the Azure Keyvault instance.
+1) Enter the values corresponding to the Alteon Load Balancer instance.
 
 - **Category**: Alteon Load Balancer
 - **Container**: _optional logical container in keyfactor for the certificates from this store_
@@ -102,6 +116,10 @@ The steps to do this are:
 
   - Note: The server credentials will only have to be entered once, even if adding multiple certificate stores.  
     - Set the credentials to those of the account with sufficient permissions to manage certs in the Alteon Load Balancer.
+    - Check __Use SSL__
+    - The __Server Name__ should be the fully qualified URL and port of the Alteon Load Balancer instance.
+
+![Server Credentials](/images/client-credentials.png)
 
 - **Store Path**: This value isn't used for this integration (other than to uniquely identify the cert store in certificate searches).  
 

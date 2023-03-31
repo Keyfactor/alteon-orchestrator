@@ -3,7 +3,8 @@
   "integration_type": "orchestrator",
   "name": "Orchestrator Extension for Alteon Load Balancer",
   "status": "prototype",
-  "link_github": true,
+  "update_catalog": false,
+  "link_github": false,
   "description": "The Alteon Load Balancer integration allows you to manage certificates within the Alteon Load Balancer device.",
   "about": {
     "orchestrator": {
