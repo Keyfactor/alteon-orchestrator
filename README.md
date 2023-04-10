@@ -2,7 +2,7 @@
 
 The Alteon Load Balancer integration allows you to manage certificates within the Alteon Load Balancer device.
 
-#### Integration status: Prototype - Demonstration quality. Not for use in customer environments.
+#### Integration status: Production - Ready for use in production environments.
 
 ## About the Keyfactor Universal Orchestrator Capability
 
