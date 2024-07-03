@@ -1,139 +1,58 @@
-# Orchestrator Extension for Alteon Load Balancer
+<h1 align="center" style="border-bottom: none">
+    for Alteon Load Balancer Universal Orchestrator Extension
+</h1>
 
-The Alteon Load Balancer integration allows you to manage certificates within the Alteon Load Balancer device.
+<p align="center">
+  <!-- Badges -->
+<img src="https://img.shields.io/badge/integration_status-production-3D1973?style=flat-square" alt="Integration Status: production" />
+<a href="https://github.com/Keyfactor/alteon-orchestrator/releases"><img src="https://img.shields.io/github/v/release/Keyfactor/alteon-orchestrator?style=flat-square" alt="Release" /></a>
+<img src="https://img.shields.io/github/issues/Keyfactor/alteon-orchestrator?style=flat-square" alt="Issues" />
+<img src="https://img.shields.io/github/downloads/Keyfactor/alteon-orchestrator/total?style=flat-square&label=downloads&color=28B905" alt="GitHub Downloads (all assets, all releases)" />
+</p>
 
-#### Integration status: Production - Ready for use in production environments.
+<p align="center">
+  <!-- TOC -->
+  <a href="#support">
+    <b>Support</b>
+  </a>
+  ·
+  <a href="#installation">
+    <b>Installation</b>
+  </a>
+  ·
+  <a href="#license">
+    <b>License</b>
+  </a>
+  ·
+  <a href="https://github.com/orgs/Keyfactor/repositories?q=orchestrator">
+    <b>Related Integrations</b>
+  </a>
+</p>
 
-## About the Keyfactor Universal Orchestrator Capability
 
-This repository contains a Universal Orchestrator Capability which is a plugin to the Keyfactor Universal Orchestrator. Within the Keyfactor Platform, Orchestrators are used to manage “certificate stores” &mdash; collections of certificates and roots of trust that are found within and used by various applications.
+## Overview
 
-The Universal Orchestrator is part of the Keyfactor software distribution and is available via the Keyfactor customer portal. For general instructions on installing Capabilities, see the “Keyfactor Command Orchestrator Installation and Configuration Guide” section of the Keyfactor documentation. For configuration details of this specific Capability, see below in this readme.
+The Alteon Load Balancer Universal Orchestrator extension is a plugin designed to facilitate the management of cryptographic certificates on Alteon Load Balancer platforms via Keyfactor Command. By leveraging this extension, organizations can streamline the inventory, addition, and removal of certificates within their Alteon Load Balancer environment.
 
-The Universal Orchestrator is the successor to the Windows Orchestrator. This Capability plugin only works with the Universal Orchestrator and does not work with the Windows Orchestrator.
+Load balancers such as Alteon play a crucial role in distributing network traffic to ensure reliability and performance of applications. They terminate SSL/TLS connections, decrypting requests before forwarding them to backend servers. Managing certificates is thus essential to maintain secure communications, and this extension helps automate and simplify these tasks.
 
+## Compatibility
 
+This integration is compatible with Keyfactor Universal Orchestrator version  and later.
 
-## Support for Orchestrator Extension for Alteon Load Balancer
+## Support
+The for Alteon Load Balancer Universal Orchestrator extension is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket with your Keyfactor representative. If you have a support issue, please open a support ticket via the Keyfactor Support Portal at https://support.keyfactor.com. 
+ 
+> To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
 
-Orchestrator Extension for Alteon Load Balancer is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket with your Keyfactor representative.
+## Installation
+Before installing the for Alteon Load Balancer Universal Orchestrator extension, it's recommended to install [kfutil](https://github.com/Keyfactor/kfutil). Kfutil is a command-line tool that simplifies the process of creating store types, installing extensions, and instantiating certificate stores in Keyfactor Command.
 
-###### To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
-___
 
+## License
 
+Apache License 2.0, see [LICENSE](LICENSE).
 
----
+## Related Integrations
 
-
-
-
-## Platform Specific Notes
-
-The Keyfactor Universal Orchestrator may be installed on either Windows or Linux based platforms. The certificate operations supported by a capability may vary based what platform the capability is installed on. The table below indicates what capabilities are supported based on which platform the encompassing Universal Orchestrator is running.
-| Operation | Win | Linux |
-|-----|-----|------|
-|Supports Management Add|&check; |&check; |
-|Supports Management Remove|&check; |&check; |
-|Supports Create Store|  |  |
-|Supports Discovery|  |  |
-|Supports Renrollment|  |  |
-|Supports Inventory|&check; |&check; |
-
-
-
-
----
-
-
-## Setup and Configuration
-
-The high level steps required to configure the Alteon Load Balancer Orchestrator extension are:
-
-1) [Create the Store Type in Keyfactor](#create-the-store-type-in-keyfactor)
-
-1) [Install the Extension on the Orchestrator](#install-the-extension-on-the-orchestrator)
-
-1) [Create the Certificate Store](#create-the-certificate-store)
-
----
-
-### Create the Store Type in Keyfactor
-
-Now we can navigate to the Keyfactor platform and create the store type for the extension.
-
-1) Navigate to your instance of Keyfactor and log in with a user that has Administrator priveledges.
-
-1) Click on the gear icon in the top left and navigate to "Certificate Store Types".
-
-     ![Cert Store Types Menu](/images/store-types-menu.png)
-
-1) Click "Add" to open the Add Certificate Store dialog.
-
-1) Name the new store type "Alteon Load Balancer" and give it the short name of "AlteonLB".
-
-1) The Alteon Load Balancer integration supports the following job types: _Inventory, Add, Remove_.  Select from these the capabilities you would like to utilize.
-
-1) Make sure that "Needs Server" is checked.
-
-     ![Cert Store Types Menu](/images/add-store-type.png)
-
-
-1) Set the following values on the __Advanced__ tab:
-     1) **Supports Custom Alias** - Optional
-     1) **Private Key Handling** - Optional
-
-     ![Cert Store Types Advanced](/images/store-type-advanced.png)
-
-1) No changes are needed in the __Custom Fields__ and __Entry Parameters__ tabs.
-
-### Install the Extension on the Orchestrator
-
-_The process for installing an extension for the universal orchestrator differs from the process of installing an extension for the Windows orchestrator.  Follow the below steps to register the integration with your instance of the universal orchestrator._
-
-1) Stop the Universal Orchestrator service.
-
-     1) Note: In Windows, this service is called "Keyfactor Orchestrator Service (Default)"
-
-1) Create a folder in the "extensions" folder of the Universal Orchestrator installation folder named "AlteonLB"
-
-     1) example: `C:\Program Files\Keyfactor\Keyfactor Orchestrator\\_AlteonLB_
-
-1) Copy the build output (if you compiled from source) or the contents of the zip file (if you downloaded the pre-compiled binaries) into this folder.
-
-1) Start the Universal Orchestrator Service
-
-
-### Create the certificate store
-
-Now add the certificate store that corresponds to an instance of the Alteon Load Balancer.
-
-The steps to do this are:
-
-1) Navigate to "Locations > Certificate Stores"
-
-1) Click "ADD"
-
-     ![Approve Cert Store](/images/add-cert-store-button.png)
-
-1) Enter the values corresponding to the Alteon Load Balancer instance.
-
-- **Category**: Alteon Load Balancer
-- **Container**: _optional logical container in keyfactor for the certificates from this store_
-- **Client Machine**: The Alteon Load Balancer Server and port
-
-  - Note: The server credentials will only have to be entered once, even if adding multiple certificate stores.  
-    - Set the credentials to those of the account with sufficient permissions to manage certs in the Alteon Load Balancer.
-    - Check __Use SSL__
-    - The __Server Name__ should be the fully qualified URL and port of the Alteon Load Balancer instance.
-
-![Server Credentials](/images/client-credentials.png)
-
-- **Store Path**: This value isn't used for this integration (other than to uniquely identify the cert store in certificate searches).  
-
----
-
-### License
-
-[Apache](https://apache.org/licenses/LICENSE-2.0)
-
+See all [Keyfactor Universal Orchestrator extensions](https://github.com/orgs/Keyfactor/repositories?q=orchestrator).
