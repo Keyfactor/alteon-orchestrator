@@ -110,12 +110,16 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                 {
                     if (certType == AlteonCertTypes.CERTIFICATE_AND_KEY)
                     {
-                        // add key and cert separately.
-                        await aClient.AddCertificate(alias, pfxPassword, pemCert, AlteonCertTypes.CERT_ONLY);
+                        // add key and cert separately.  
+                        // this needs to be done in the following order: key, then cert (per Alteon support)                        
+                        logger.LogTrace($"adding key and then certificate for certificate with alias {alias}");
+
                         await aClient.AddCertificate(alias, pfxPassword, pemKey, AlteonCertTypes.KEY_ONLY);
+                        await aClient.AddCertificate(alias, pfxPassword, pemCert, AlteonCertTypes.CERT_ONLY);
                     }
                     else
                     {
+                        logger.LogTrace($"Adding certificate only for certificate with alias {alias}");
                         await aClient.AddCertificate(alias, pfxPassword, pemCert, certType);
                     }
                     complete.Result = OrchestratorJobStatusJobResult.Success;
