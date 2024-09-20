@@ -10,6 +10,7 @@
   "about": {
     "orchestrator": {
       "keyfactor_platform_version": "10.4",
+      "UOFramework": "10.4",
       "win": {
         "supportsCreateStore": false,
         "supportsDiscovery": false,
