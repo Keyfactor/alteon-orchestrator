@@ -6,6 +6,7 @@
   "support_level": "kf-supported",
   "update_catalog": true,
   "link_github": true,
+  "release_dir": "alteon-orchestrator\\bin\\Release",
   "description": "The Alteon Load Balancer integration allows you to manage certificates within the Alteon Load Balancer device.",
   "about": {
     "orchestrator": {
