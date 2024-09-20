@@ -19,17 +19,11 @@ Orchestrator Extension for Alteon Load Balancer is supported by Keyfactor for Ke
 
 ###### To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
 
-
-
-## Support for Orchestrator Extension for Alteon Load Balancer
-
-Orchestrator Extension for Alteon Load Balancer is supported by Keyfactor for Keyfactor customers. If you have a support issue, please open a support ticket with your Keyfactor representative.
-
-###### To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
-___
+---
 
 
 ---
+
 
 
 ## Keyfactor Version Supported
@@ -46,6 +40,9 @@ The Keyfactor Universal Orchestrator may be installed on either Windows or Linux
 |Supports Discovery|  |  |
 |Supports Reenrollment|  |  |
 |Supports Inventory|&check; |&check; |
+
+
+
 
 
 ---
