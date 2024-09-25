@@ -69,13 +69,13 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
             
             byte[] bytes;
             X509Certificate2 x509;
-            string pemCert, pemKey;
+            string pemCert, privateKeyString;
 
             try
             {
                 bytes = Convert.FromBase64String(entryContents);
                 x509 = new X509Certificate2(bytes, pfxPassword, X509KeyStorageFlags.Exportable);
-                (pemCert, pemKey) = GetPemFromPfx(bytes, pfxPassword.ToCharArray());
+                (pemCert, privateKeyString) = GetPemFromPfx(bytes, pfxPassword.ToCharArray());
             }
             catch (Exception ex)
             {
@@ -87,16 +87,20 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
             if (x509.PrivateKey != null)
             {
+                logger.LogTrace($"Private key is present, setting cert type to {AlteonCertTypes.CERTIFICATE_AND_KEY}");
                 certType = AlteonCertTypes.CERTIFICATE_AND_KEY; // we import as a pair
             }
             else
             {
                 if (x509.Subject == x509.Issuer)
                 {
+                    logger.LogTrace($"Subject = {x509.Issuer}, importing as a trusted CA certificate");
                     certType = AlteonCertTypes.TRUSTED_CA; // we import as a trusted ca
                 }
                 // else we import as intermediate ca (default)                
             }
+
+            logger.LogTrace($"determined type to be {certType}");
 
             if (!string.IsNullOrWhiteSpace(pfxPassword)) // This is a PFX Entry
             {
@@ -110,12 +114,15 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                 {
                     if (certType == AlteonCertTypes.CERTIFICATE_AND_KEY)
                     {
-                        // add key and cert separately.
+                        // add key and cert separately.  
+                        // this needs to be done in the following order: key, then cert (per Alteon support)                        
+                        logger.LogTrace($"adding key and then certificate for certificate with alias {alias}");
+                        await aClient.AddCertificate(alias, pfxPassword, Pemify(privateKeyString), AlteonCertTypes.KEY_ONLY);
                         await aClient.AddCertificate(alias, pfxPassword, pemCert, AlteonCertTypes.CERT_ONLY);
-                        await aClient.AddCertificate(alias, pfxPassword, pemKey, AlteonCertTypes.KEY_ONLY);
                     }
                     else
                     {
+                        logger.LogTrace($"Adding certificate only for certificate with alias {alias}");
                         await aClient.AddCertificate(alias, pfxPassword, pemCert, certType);
                     }
                     complete.Result = OrchestratorJobStatusJobResult.Success;
@@ -126,6 +133,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
                     if (ex.InnerException != null)
                         complete.FailureMessage += " - " + ex.InnerException.Message;
+                    logger.LogError($"an error occurred when attempting to add certificate: {ex.Message}");
                 }
             }
 
@@ -211,6 +219,11 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                 throw;
             }
         }
-        
+
+        private string Pemify(string ss)
+        {
+            return ss.Length <= 64 ? ss : ss.Substring(0, 64) + "\n" + Pemify(ss.Substring(64));
+        }
+
     }
 }
