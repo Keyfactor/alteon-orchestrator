@@ -12,6 +12,20 @@
     "orchestrator": {
       "keyfactor_platform_version": "10.4",
       "UOFramework": "10.4",
+      "store_types": [
+        {
+          "Name": "Alteon Load Balancer",
+          "ShortName": "AlteonLB",
+          "SupportedOperations": {
+            "Inventory": true,
+            "Add": true,
+            "Remove": true
+          },
+          "ServerRequired": true,
+          "CustomAliasAllowed": "Optional",
+          "PrivateKeyAllowed": "Optional"
+        }
+      ],
       "win": {
         "supportsCreateStore": false,
         "supportsDiscovery": false,
