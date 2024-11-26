@@ -14,7 +14,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -24,9 +23,6 @@ using Keyfactor.Orchestrators.Common.Enums;
 using Keyfactor.Orchestrators.Extensions;
 using Keyfactor.PKI.X509;
 using Microsoft.Extensions.Logging;
-using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.OpenSsl;
-using Org.BouncyCastle.Pkcs;
 
 
 namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
@@ -119,13 +115,13 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                         // add key and cert separately.  
                         // this needs to be done in the following order: key, then cert (per Alteon support)                        
                         logger.LogTrace($"adding key and then certificate for certificate with alias {alias}");
-                        await aClient.AddCertificate(alias, pfxPassword, pemKey, AlteonCertTypes.KEY_ONLY);
-                        await aClient.AddCertificate(alias, pfxPassword, pemCert, AlteonCertTypes.CERT_ONLY);
+                        await aClient.AddCertificate(alias, pfxPassword, pemKey, AlteonCertTypes.KEY_ONLY, Overwrite);
+                        await aClient.AddCertificate(alias, pfxPassword, pemCert, AlteonCertTypes.CERT_ONLY, Overwrite);
                     }
                     else
                     {
                         logger.LogTrace($"Adding certificate only for certificate with alias {alias}");
-                        await aClient.AddCertificate(alias, pfxPassword, pemCert, certType);
+                        await aClient.AddCertificate(alias, pfxPassword, pemCert, certType, Overwrite);
                     }
                     complete.Result = OrchestratorJobStatusJobResult.Success;
                 }
