@@ -26,6 +26,8 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
         public string ServerUrl { get; set; }
 
+        public bool Overwrite { get; set; }
+
         internal protected AlteonLoadBalancerClient aClient { get; set; }
 
 
@@ -41,6 +43,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
             ServerUrl = config.CertificateStoreDetails.ClientMachine;
             Username = config.ServerUsername;
             Password = config.ServerPassword;
+            Overwrite = config.Overwrite;
             aClient = new AlteonLoadBalancerClient(ServerUrl, Username, Password);
         }
     }

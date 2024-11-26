@@ -34,7 +34,6 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             {
                 RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true,
                 Authenticator = new HttpBasicAuthenticator(username, password)
-
             };
             _restClient = new RestClient(options);
         }
@@ -99,14 +98,26 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             }
         }
 
-        public async Task AddCertificate(string alias, string pfxPassword, string certContents, string type)
+        public async Task AddCertificate(string alias, string pfxPassword, string certContents, string type, bool overwrite)
         {
             logger.MethodEntry();
+            // first, see if a certificate with this alias/id already exists
+            var existing = await GetCertificatesById(alias);
+            var replace = false;
+            if (existing.SlbNewSslCfgCertsTable?.Count > 0)
+            {
+                // the cert already exists; if overwrite == true, we should overwrite; else exist here.
+                if (!overwrite) throw new Exception($"The certificate with id {alias} already exists and Overwrite == false.");
+                replace = true; // if it exists and overwrite is true, we replace it.
+            }
+
+
             var request = new RestRequest(Endpoints.AddCertificate, Method.Post);
             request.AddQueryParameter("id", alias);
             request.AddQueryParameter("type", type);
             request.AddQueryParameter("passphrase", pfxPassword);
             request.AddQueryParameter("src", "txt");
+            if (replace) request.AddQueryParameter("renew", 1);
 
             request.AddBody(certContents);
             var fullUri = _restClient.BuildUri(request);
