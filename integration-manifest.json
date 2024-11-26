@@ -6,9 +6,26 @@
   "support_level": "kf-supported",
   "update_catalog": true,
   "link_github": true,
+  "release_dir": "alteon-orchestrator\\bin\\Release",
   "description": "The Alteon Load Balancer integration allows you to manage certificates within the Alteon Load Balancer device.",
   "about": {
     "orchestrator": {
+      "keyfactor_platform_version": "10.4",
+      "UOFramework": "10.4",
+      "store_types": [
+        {
+          "Name": "Alteon Load Balancer",
+          "ShortName": "AlteonLB",
+          "SupportedOperations": {
+            "Inventory": true,
+            "Add": true,
+            "Remove": true
+          },
+          "ServerRequired": true,
+          "CustomAliasAllowed": "Optional",
+          "PrivateKeyAllowed": "Optional"
+        }
+      ],
       "win": {
         "supportsCreateStore": false,
         "supportsDiscovery": false,
