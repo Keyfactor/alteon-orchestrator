@@ -13,12 +13,14 @@
 // limitations under the License.
 
 using Keyfactor.Orchestrators.Extensions;
+using Keyfactor.Orchestrators.Extensions.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 {
     public abstract class JobBase
     {
-        public string ExtensionName => "AlteonLB";
+        public string ExtensionName => "";
 
         public string Username { get; set; }
 
@@ -26,21 +28,23 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
         public string ServerUrl { get; set; }
 
+        public IPAMSecretResolver _resolver;
+
         internal protected AlteonLoadBalancerClient aClient { get; set; }
 
 
-        public void InitializeStore(InventoryJobConfiguration config)
+        public void InitializeStore(InventoryJobConfiguration config, ILogger logger)
         {            
             ServerUrl = config.CertificateStoreDetails.ClientMachine;
-            Username = config.ServerUsername;
-            Password = config.ServerPassword;
+            Username = PAMUtilities.ResolvePAMField(_resolver, logger, "Server User Name", config.ServerUsername);
+            Password = PAMUtilities.ResolvePAMField(_resolver, logger, "Server Password", config.ServerPassword);
             aClient = new AlteonLoadBalancerClient(ServerUrl, Username, Password);
         }
 
-        public void InitializeStore(ManagementJobConfiguration config) {
+        public void InitializeStore(ManagementJobConfiguration config, ILogger logger) {
             ServerUrl = config.CertificateStoreDetails.ClientMachine;
-            Username = config.ServerUsername;
-            Password = config.ServerPassword;
+            Username = PAMUtilities.ResolvePAMField(_resolver, logger, "Server User Name", config.ServerUsername); 
+            Password = PAMUtilities.ResolvePAMField(_resolver, logger, "Server Password", config.ServerPassword);
             aClient = new AlteonLoadBalancerClient(ServerUrl, Username, Password);
         }
     }
