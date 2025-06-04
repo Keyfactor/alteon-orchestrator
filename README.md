@@ -59,6 +59,8 @@ To use the for Alteon Load Balancer Universal Orchestrator extension, you **must
 
 
 
+
+
 #### Supported Operations
 
 | Operation    | Is Supported                                                                                                           |
@@ -274,13 +276,8 @@ Please refer to the **Universal Orchestrator (remote)** usage section ([PAM prov
 </details>
 
 
-
 > The content in this section can be supplemented by the [official Command documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Certificate%20Stores.htm?Highlight=certificate%20store).
 
-
-
-
-</details>
 
 
 
