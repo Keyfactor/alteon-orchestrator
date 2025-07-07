@@ -21,6 +21,7 @@ using System.Threading.Tasks;
 using Keyfactor.Logging;
 using Keyfactor.Orchestrators.Common.Enums;
 using Keyfactor.Orchestrators.Extensions;
+using Keyfactor.Orchestrators.Extensions.Interfaces;
 using Microsoft.Extensions.Logging;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.OpenSsl;
@@ -33,9 +34,14 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
     {
         readonly ILogger logger = LogHandler.GetClassLogger<Management>();
 
+        public Management(IPAMSecretResolver resolver)
+        {
+            _resolver = resolver;
+        }
+
         public JobResult ProcessJob(ManagementJobConfiguration config)
         {
-            InitializeStore(config);
+            InitializeStore(config, logger);
 
             JobResult complete = new JobResult()
             {
