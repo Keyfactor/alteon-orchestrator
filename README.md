@@ -59,6 +59,8 @@ To use the for Alteon Load Balancer Universal Orchestrator extension, you **must
 
 
 
+
+
 #### Supported Operations
 
 | Operation    | Is Supported                                                                                                           |
@@ -72,7 +74,7 @@ To use the for Alteon Load Balancer Universal Orchestrator extension, you **must
 #### Store Type Creation
 
 ##### Using kfutil:
-`kfutil` is a custom CLI for the Keyfactor Command API and can be used to created certificate store types.
+`kfutil` is a custom CLI for the Keyfactor Command API and can be used to create certificate store types.
 For more information on [kfutil](https://github.com/Keyfactor/kfutil) check out the [docs](https://github.com/Keyfactor/kfutil?tab=readme-ov-file#quickstart)
    <details><summary>Click to expand AlteonLB kfutil details</summary>
 
@@ -212,8 +214,8 @@ the Keyfactor Command Portal
 
     Click the Add button to add a new Certificate Store. Use the table below to populate the **Attributes** in the **Add** form.
 
-   | Attribute | Description |
-   | --------- | ----------- |
+   | Attribute | Description                                             |
+   | --------- |---------------------------------------------------------|
    | Category | Select "Alteon Load Balancer" or the customized certificate store name from the previous step. |
    | Container | Optional container to associate certificate store with. |
    | Client Machine | The Alteon Load Balancer Server and port |
@@ -274,13 +276,8 @@ Please refer to the **Universal Orchestrator (remote)** usage section ([PAM prov
 </details>
 
 
-
 > The content in this section can be supplemented by the [official Command documentation](https://software.keyfactor.com/Core-OnPrem/Current/Content/ReferenceGuide/Certificate%20Stores.htm?Highlight=certificate%20store).
 
-
-
-
-</details>
 
 
 
