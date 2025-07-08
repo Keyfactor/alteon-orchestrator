@@ -18,17 +18,23 @@ using System.Linq;
 using Keyfactor.Logging;
 using Keyfactor.Orchestrators.Common.Enums;
 using Keyfactor.Orchestrators.Extensions;
+using Keyfactor.Orchestrators.Extensions.Interfaces;
 using Microsoft.Extensions.Logging;
 
 namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 {
     public class Inventory : JobBase, IInventoryJobExtension
     {
-        ILogger logger = LogHandler.GetClassLogger<Inventory>();              
+        ILogger logger = LogHandler.GetClassLogger<Inventory>();
+
+        public Inventory(IPAMSecretResolver resolver)
+        {
+            _resolver = resolver;
+        }
 
         public JobResult ProcessJob(InventoryJobConfiguration config, SubmitInventoryUpdate submitInventoryUpdate)
         {
-            InitializeStore(config);
+            InitializeStore(config, logger);
 
             List<CurrentInventoryItem> certs = new List<CurrentInventoryItem>();
             try
