@@ -1,5 +1,5 @@
 <h1 align="center" style="border-bottom: none">
-    for Alteon Load Balancer Universal Orchestrator Extension
+    Alteon Load Balancer Universal Orchestrator Extension
 </h1>
 
 <p align="center">
@@ -40,19 +40,19 @@ The Alteon Load Balancer integration allows you to manage certificates within th
 This integration is compatible with Keyfactor Universal Orchestrator version 10.4 and later.
 
 ## Support
-The for Alteon Load Balancer Universal Orchestrator extension If you have a support issue, please open a support ticket by either contacting your Keyfactor representative or via the Keyfactor Support Portal at https://support.keyfactor.com.
+The Alteon Load Balancer Universal Orchestrator extension If you have a support issue, please open a support ticket by either contacting your Keyfactor representative or via the Keyfactor Support Portal at https://support.keyfactor.com.
 
 > To report a problem or suggest a new feature, use the **[Issues](../../issues)** tab. If you want to contribute actual bug fixes or proposed enhancements, use the **[Pull requests](../../pulls)** tab.
 
 ## Requirements & Prerequisites
 
-Before installing the for Alteon Load Balancer Universal Orchestrator extension, we recommend that you install [kfutil](https://github.com/Keyfactor/kfutil). Kfutil is a command-line tool that simplifies the process of creating store types, installing extensions, and instantiating certificate stores in Keyfactor Command.
+Before installing the Alteon Load Balancer Universal Orchestrator extension, we recommend that you install [kfutil](https://github.com/Keyfactor/kfutil). Kfutil is a command-line tool that simplifies the process of creating store types, installing extensions, and instantiating certificate stores in Keyfactor Command.
 
 
 
 ## AlteonLB Certificate Store Type
 
-To use the for Alteon Load Balancer Universal Orchestrator extension, you **must** create the AlteonLB Certificate Store Type. This only needs to happen _once_ per Keyfactor Command instance.
+To use the Alteon Load Balancer Universal Orchestrator extension, you **must** create the AlteonLB Certificate Store Type. This only needs to happen _once_ per Keyfactor Command instance.
 
 
 
@@ -152,9 +152,9 @@ the Keyfactor Command Portal
 
 ## Installation
 
-1. **Download the latest for Alteon Load Balancer Universal Orchestrator extension from GitHub.**
+1. **Download the latest Alteon Load Balancer Universal Orchestrator extension from GitHub.**
 
-    Navigate to the [for Alteon Load Balancer Universal Orchestrator extension GitHub version page](https://github.com/Keyfactor/alteon-orchestrator/releases/latest). Refer to the compatibility matrix below to determine whether the `net6.0` or `net8.0` asset should be downloaded. Then, click the corresponding asset to download the zip archive.
+    Navigate to the [Alteon Load Balancer Universal Orchestrator extension GitHub version page](https://github.com/Keyfactor/alteon-orchestrator/releases/latest). Refer to the compatibility matrix below to determine whether the `net6.0` or `net8.0` asset should be downloaded. Then, click the corresponding asset to download the zip archive.
 
    | Universal Orchestrator Version | Latest .NET version installed on the Universal Orchestrator server | `rollForward` condition in `Orchestrator.runtimeconfig.json` | `alteon-orchestrator` .NET version to download |
    | --------- | ----------- | ----------- | ----------- |
@@ -173,7 +173,7 @@ the Keyfactor Command Portal
     * **Default on Windows** - `C:\Program Files\Keyfactor\Keyfactor Orchestrator\extensions`
     * **Default on Linux** - `/opt/keyfactor/orchestrator/extensions`
 
-3. **Create a new directory for the for Alteon Load Balancer Universal Orchestrator extension inside the extensions directory.**
+3. **Create a new directory for the Alteon Load Balancer Universal Orchestrator extension inside the extensions directory.**
 
     Create a new directory called `alteon-orchestrator`.
     > The directory name does not need to match any names used elsewhere; it just has to be unique within the extensions directory.
@@ -187,7 +187,7 @@ the Keyfactor Command Portal
 
 6. **(optional) PAM Integration**
 
-    The for Alteon Load Balancer Universal Orchestrator extension is compatible with all supported Keyfactor PAM extensions to resolve PAM-eligible secrets. PAM extensions running on Universal Orchestrators enable secure retrieval of secrets from a connected PAM provider.
+    The Alteon Load Balancer Universal Orchestrator extension is compatible with all supported Keyfactor PAM extensions to resolve PAM-eligible secrets. PAM extensions running on Universal Orchestrators enable secure retrieval of secrets from a connected PAM provider.
 
     To configure a PAM provider, [reference the Keyfactor Integration Catalog](https://keyfactor.github.io/integrations-catalog/content/pam) to select an extension and follow the associated instructions to install it on the Universal Orchestrator (remote).
 
