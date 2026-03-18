@@ -1,15 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-		<TargetFramework>netstandard2.0</TargetFramework>
+    <TargetFrameworks>net6.0;net8.0</TargetFrameworks>
     <RootNamespace>Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer</RootNamespace>
     <AssemblyName>Keyfactor.Extensions.Orchestrator.AlteonLB</AssemblyName>
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 		<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
 		<SignAssembly>false</SignAssembly>
 		<Copyright />
-		<AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-		<AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+		<AppendTargetFrameworkToOutputPath>true</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
