@@ -119,8 +119,8 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             request.AddQueryParameter("id", alias);
             request.AddQueryParameter("type", type);
             request.AddQueryParameter("passphrase", pfxPassword);
-            request.AddQueryParameter("src", "txt");            
-            if (replace) request.AddQueryParameter("renew", 1);            
+            request.AddQueryParameter("src", "txt");
+            if (replace) request.AddQueryParameter("renew", 1);
             request.AddBody(certContents);
             var fullUri = _restClient.BuildUri(request);
             logger.LogTrace($"posting certificate to the uri {fullUri}");
@@ -132,6 +132,8 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
                 {
                     throw new Exception($"Failed to add certificate: {alias}", response.ErrorException);
                 }
+                // apply and save changes
+                await ApplyAndSave();
             }
             catch (Exception ex)
             {
@@ -142,7 +144,6 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             {
                 logger.MethodExit();
             }
-
         }
 
         internal async Task RemoveCertificate(string alias)
@@ -169,6 +170,8 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
                         throw new Exception($"Failed to remove certificate: {alias}", response.ErrorException);
                     }
                 });
+                // apply and save changes
+                await ApplyAndSave();
             }
             catch (Exception ex)
             {
@@ -176,6 +179,103 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
                 throw;
             }
             logger.MethodExit();
+        }
+
+        /// <summary>
+        /// This method is intended to be called after making changes to the certs/keys on the Alteon.  It will apply the changes and save the config, so that the changes persist through a reboot.  If this isn't called after making changes, the changes will be lost on reboot.
+        /// </summary>
+        /// <returns></returns>
+        internal async Task ApplyAndSave()
+        {
+            logger.MethodEntry();           
+            logger.LogTrace($"making requests to apply and save changes");
+            try
+            {
+                await ApplyChanges();
+                await LogApplyTable();
+                await SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex.Message, ex);
+                throw;
+            }
+            finally
+            {
+                logger.MethodExit();
+            }
+        }
+
+        internal async Task ApplyChanges()
+        {
+            logger.MethodEntry();
+            var applyRequest = new RestRequest(Endpoints.ApplyChanges, Method.Post);
+            var fullUri = _restClient.BuildUri(applyRequest);
+            logger.LogTrace($"making request to apply and save changes to uri {fullUri}");
+            try
+            {
+                var response = await _restClient.PostAsync(applyRequest);
+                if (!response.IsSuccessful)
+                {
+                    throw new Exception($"Failed to apply changes.", response.ErrorException);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex.Message, ex);
+                throw;
+            }
+            finally
+            {
+                logger.MethodExit();
+            }
+        }
+
+        internal async Task SaveChanges()
+        {
+            logger.MethodEntry();
+            var saveRequest = new RestRequest(Endpoints.SaveChanges, Method.Post);
+            var fullUri = _restClient.BuildUri(saveRequest);
+            logger.LogTrace($"making request to save changes to uri {fullUri}");
+            try
+            {
+                var response = await _restClient.PostAsync(saveRequest);
+                if (!response.IsSuccessful)
+                {
+                    throw new Exception($"Failed to save changes.", response.ErrorException);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex.Message, ex);
+                throw;
+            }
+            finally
+            {
+                logger.MethodExit();
+            }
+        }
+
+        internal async Task LogApplyTable()
+        {
+            logger.MethodEntry();
+            var request = new RestRequest(Endpoints.ApplyTable);
+            var fullUri = _restClient.BuildUri(request);
+            logger.LogTrace($"making request to get apply table to uri {fullUri}");
+            try
+            {
+                var response = await _restClient.GetAsync(request);
+                logger.LogTrace($"Apply table response: {response.Content}");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex.Message, ex);
+                throw;
+            }
+            finally
+            {
+                logger.MethodExit();
+            }
         }
     }
 }
