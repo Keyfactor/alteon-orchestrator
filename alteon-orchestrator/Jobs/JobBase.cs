@@ -28,6 +28,8 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
         public string ServerUrl { get; set; }
 
+        public bool Overwrite { get; set; }
+
         public IPAMSecretResolver _resolver;
 
         internal protected AlteonLoadBalancerClient aClient { get; set; }
@@ -43,8 +45,9 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
         public void InitializeStore(ManagementJobConfiguration config, ILogger logger) {
             ServerUrl = config.CertificateStoreDetails.ClientMachine;
-            Username = PAMUtilities.ResolvePAMField(_resolver, logger, "Server User Name", config.ServerUsername); 
-            Password = PAMUtilities.ResolvePAMField(_resolver, logger, "Server Password", config.ServerPassword);
+            Username = config.ServerUsername;
+            Password = config.ServerPassword;
+            Overwrite = config.Overwrite;
             aClient = new AlteonLoadBalancerClient(ServerUrl, Username, Password);
         }
     }
