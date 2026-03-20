@@ -11,8 +11,8 @@
   "description": "The Alteon Load Balancer integration allows you to manage certificates within the Alteon Load Balancer device.",
   "about": {
     "orchestrator": {
-      "UOFramework": "10.4",
-      "keyfactor_platform_version": "10.4",
+      "UOFramework": "10.1",
+      "keyfactor_platform_version": "10.1",
       "pam_support": true,
       "store_types": [
         {
