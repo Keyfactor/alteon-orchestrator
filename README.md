@@ -147,26 +147,6 @@ the Keyfactor Command Portal
    ![AlteonLB Custom Fields Tab](docsource/images/AlteonLB-custom-fields-store-type-dialog.png)
 
 
-   ###### Server Username
-   Alteon user ID with sufficient permissions to manage certs in the Alteon Load Balancer.
-
-
-   > [!IMPORTANT]
-   > This field is created by the `Needs Server` on the Basic tab, do not create this field manually.
-
-
-
-
-   ###### Server Password
-   Password associated with Alteon user ID entered above.
-
-
-   > [!IMPORTANT]
-   > This field is created by the `Needs Server` on the Basic tab, do not create this field manually.
-
-
-
-
 
 
    </details>
