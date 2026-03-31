@@ -1,5 +1,5 @@
 1.2.0
-  - added apply and save actions 
+  - added apply and save actions after certificate operations
   
 1.1.0
   - Add doctool and dual build for .net6/8
