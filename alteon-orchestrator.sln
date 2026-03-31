@@ -1,12 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.32413.511
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35327.3
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "alteon-orchestrator", "alteon-orchestrator\alteon-orchestrator.csproj", "{E3D51525-B1FB-4B14-B7AD-0430A8718DEE}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{583BA6E4-B528-45FE-B027-3ECE30FB7500}"
 	ProjectSection(SolutionItems) = preProject
+		CHANGELOG.md = CHANGELOG.md
 		integration-manifest.json = integration-manifest.json
 		readme_source.md = readme_source.md
 	EndProjectSection

@@ -37,7 +37,7 @@ The Alteon Load Balancer integration allows you to manage certificates within th
 
 ## Compatibility
 
-This integration is compatible with Keyfactor Universal Orchestrator version 10.4 and later.
+This integration is compatible with Keyfactor Universal Orchestrator version 10.1 and later.
 
 ## Support
 The Alteon Load Balancer Universal Orchestrator extension is supported by Keyfactor. If you require support for any issues or have feature request, please open a support ticket by either contacting your Keyfactor representative or via the Keyfactor Support Portal at https://support.keyfactor.com.
@@ -107,7 +107,7 @@ the Keyfactor Command Portal
    | --------- | ----- | ----- |
    | Name | Alteon Load Balancer | Display name for the store type (may be customized) |
    | Short Name | AlteonLB | Short display name for the store type |
-   | Capability | AlteonLB | Store type name orchestrator will register with. Check the box to allow entry of value |
+   | Capability |  | Store type name orchestrator will register with. Check the box to allow entry of value |
    | Supports Add | ✅ Checked | Check the box. Indicates that the Store Type supports Management Add |
    | Supports Remove | ✅ Checked | Check the box. Indicates that the Store Type supports Management Remove |
    | Supports Discovery | 🔲 Unchecked |  Indicates that the Store Type supports Discovery |
@@ -141,32 +141,10 @@ the Keyfactor Command Portal
 
    | Name | Display Name | Description | Type | Default Value/Options | Required |
    | ---- | ------------ | ---- | --------------------- | -------- | ----------- |
-   | ServerUsername | Server Username | Alteon user ID with sufficient permissions to manage certs in the Alteon Load Balancer. | Secret |  | ✅ Checked |
-   | ServerPassword | Server Password | Password associated with Alteon user ID entered above. | Secret |  | ✅ Checked |
 
    The Custom Fields tab should look like this:
 
    ![AlteonLB Custom Fields Tab](docsource/images/AlteonLB-custom-fields-store-type-dialog.png)
-
-
-   ###### Server Username
-   Alteon user ID with sufficient permissions to manage certs in the Alteon Load Balancer.
-
-
-   > [!IMPORTANT]
-   > This field is created by the `Needs Server` on the Basic tab, do not create this field manually.
-
-
-
-
-   ###### Server Password
-   Password associated with Alteon user ID entered above.
-
-
-   > [!IMPORTANT]
-   > This field is created by the `Needs Server` on the Basic tab, do not create this field manually.
-
-
 
 
 
@@ -240,11 +218,9 @@ the Keyfactor Command Portal
    | --------- |---------------------------------------------------------|
    | Category | Select "Alteon Load Balancer" or the customized certificate store name from the previous step. |
    | Container | Optional container to associate certificate store with. |
-   | Client Machine | The Alteon Load Balancer Server and port |
-   | Store Path | This value isn't used for this integration (other than to uniquely identify the cert store in certificate searches). |
-   | Orchestrator | Select an approved orchestrator capable of managing `AlteonLB` certificates. Specifically, one with the `AlteonLB` capability. |
-   | ServerUsername | Alteon user ID with sufficient permissions to manage certs in the Alteon Load Balancer. |
-   | ServerPassword | Password associated with Alteon user ID entered above. |
+   | Client Machine | The hostname or IP address of the Alteon Load Balancer device. |
+   | Store Path |  |
+   | Orchestrator | Select an approved orchestrator capable of managing `AlteonLB` certificates. Specifically, one with the `` capability. |
 
 </details>
 
@@ -267,11 +243,9 @@ the Keyfactor Command Portal
    | --------- | ----------- |
    | Category | Select "Alteon Load Balancer" or the customized certificate store name from the previous step. |
    | Container | Optional container to associate certificate store with. |
-   | Client Machine | The Alteon Load Balancer Server and port |
-   | Store Path | This value isn't used for this integration (other than to uniquely identify the cert store in certificate searches). |
-   | Orchestrator | Select an approved orchestrator capable of managing `AlteonLB` certificates. Specifically, one with the `AlteonLB` capability. |
-   | Properties.ServerUsername | Alteon user ID with sufficient permissions to manage certs in the Alteon Load Balancer. |
-   | Properties.ServerPassword | Password associated with Alteon user ID entered above. |
+   | Client Machine | The hostname or IP address of the Alteon Load Balancer device. |
+   | Store Path |  |
+   | Orchestrator | Select an approved orchestrator capable of managing `AlteonLB` certificates. Specifically, one with the `` capability. |
 
 3. **Import the CSV file to create the certificate stores**
 
@@ -289,8 +263,8 @@ If a PAM provider was installed _on the Universal Orchestrator_ in the [Installa
 
    | Attribute | Description |
    | --------- | ----------- |
-   | ServerUsername | Alteon user ID with sufficient permissions to manage certs in the Alteon Load Balancer. |
-   | ServerPassword | Password associated with Alteon user ID entered above. |
+   | ServerUsername | Username to use when connecting to server |
+   | ServerPassword | Password to use when connecting to server |
 
 Please refer to the **Universal Orchestrator (remote)** usage section ([PAM providers on the Keyfactor Integration Catalog](https://keyfactor.github.io/integrations-catalog/content/pam)) for your selected PAM provider for instructions on how to load attributes orchestrator-side.
 > Any secret can be rendered by a PAM provider _installed on the Keyfactor Command server_. The above parameters are specific to attributes that can be fetched by an installed PAM provider running on the Universal Orchestrator server itself.
