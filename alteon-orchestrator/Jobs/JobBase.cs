@@ -1,4 +1,4 @@
-﻿// Copyright 2022 Keyfactor
+﻿// Copyright 2026 Keyfactor
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using Keyfactor.Logging;
 using Keyfactor.Orchestrators.Extensions;
 using Keyfactor.Orchestrators.Extensions.Interfaces;
 using Microsoft.Extensions.Logging;
+using System.Reflection;
 
 namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 {
@@ -32,23 +34,42 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
         public IPAMSecretResolver _resolver;
 
+        internal protected ILogger logger { get; set; }
+
         internal protected AlteonLoadBalancerClient aClient { get; set; }
 
 
-        public void InitializeStore(InventoryJobConfiguration config, ILogger logger)
-        {            
+        public void InitializeStore(InventoryJobConfiguration config)
+        {
+            logger.MethodEntry();
+            LogPluginVersion();
             ServerUrl = config.CertificateStoreDetails.ClientMachine;
-            Username = PAMUtilities.ResolvePAMField(_resolver, logger, "Server User Name", config.ServerUsername);
+            Username = PAMUtilities.ResolvePAMField(_resolver, logger, "Server Username", config.ServerUsername);
             Password = PAMUtilities.ResolvePAMField(_resolver, logger, "Server Password", config.ServerPassword);
-            aClient = new AlteonLoadBalancerClient(ServerUrl, Username, Password);
+            aClient = new AlteonLoadBalancerClient(ServerUrl, Username, Password, logger);
+            logger.LogTrace($"Configuration complete for inventory job.  Server Url = {ServerUrl}");
+            logger.MethodExit();
+
         }
 
-        public void InitializeStore(ManagementJobConfiguration config, ILogger logger) {
+        public void InitializeStore(ManagementJobConfiguration config) {
+            logger.MethodEntry();
+            LogPluginVersion();
             ServerUrl = config.CertificateStoreDetails.ClientMachine;
-            Username = config.ServerUsername;
-            Password = config.ServerPassword;
+            Username = PAMUtilities.ResolvePAMField(_resolver, logger, "Server Username", config.ServerUsername);
+            Password = PAMUtilities.ResolvePAMField(_resolver, logger, "Server Password", config.ServerPassword);
             Overwrite = config.Overwrite;
-            aClient = new AlteonLoadBalancerClient(ServerUrl, Username, Password);
+            aClient = new AlteonLoadBalancerClient(ServerUrl, Username, Password, logger);
+            logger.LogTrace($"Configuration complete for management job.  Server Url = {ServerUrl}, Overwrite = {Overwrite}, Certificate Alias = {config.JobCertificate.Alias}");
+            logger.MethodExit();
+        }
+        protected void LogPluginVersion()
+        {
+            var targetAssembly = Assembly.GetExecutingAssembly();
+            var assemblyName = targetAssembly?.GetName();
+            var version = assemblyName?.Version;
+            logger.LogTrace("Keyfactor Orchestrator Extension for Alteon Load Balancer");
+            logger.LogTrace($"{assemblyName?.Name ?? "unknown"} v{version}");
         }
     }
 }

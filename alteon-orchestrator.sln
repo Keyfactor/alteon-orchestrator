@@ -7,7 +7,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "alteon-orchestrator", "alte
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{583BA6E4-B528-45FE-B027-3ECE30FB7500}"
 	ProjectSection(SolutionItems) = preProject
+		docsource\alteonlb.md = docsource\alteonlb.md
 		CHANGELOG.md = CHANGELOG.md
+		docsource\content.md = docsource\content.md
 		integration-manifest.json = integration-manifest.json
 		readme_source.md = readme_source.md
 	EndProjectSection

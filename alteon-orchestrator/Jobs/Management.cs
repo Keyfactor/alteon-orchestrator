@@ -1,4 +1,4 @@
-﻿// Copyright 2022 Keyfactor
+﻿// Copyright 2026 Keyfactor
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -30,16 +30,15 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 {
     public class Management : JobBase, IManagementJobExtension
     {
-        readonly ILogger logger = LogHandler.GetClassLogger<Management>();
-
         public Management(IPAMSecretResolver resolver)
         {
             _resolver = resolver;
+            logger = LogHandler.GetClassLogger<Management>();
         }
 
         public JobResult ProcessJob(ManagementJobConfiguration config)
         {
-            InitializeStore(config, logger);
+            InitializeStore(config);
 
             JobResult complete = new JobResult()
             {
@@ -83,7 +82,9 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
             }
             catch (Exception ex)
             {
-                logger.LogError("error decoding certificate", ex);
+                logger.LogError("an error occurred when attempting to decode the certificate");
+                logger.LogError($"certificate contents: \n{entryContents}");
+                logger.LogError($"error: {ex.Message}");
                 throw;
             }
 
@@ -133,7 +134,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                 }
                 catch (Exception ex)
                 {
-                    complete.FailureMessage = $"An error occured while adding {alias} to {ExtensionName}: " + ex.Message;
+                    complete.FailureMessage = $"An error occurred while adding {alias} to {ExtensionName}: " + ex.Message;
 
                     if (ex.InnerException != null)
                         complete.FailureMessage += " - " + ex.InnerException.Message;
@@ -167,8 +168,8 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
             catch (Exception ex)
             {
-                logger.LogError("Error deleting cert from device.", ex);
-                complete.FailureMessage = $"An error occured while removing {alias} from {ExtensionName}: " + ex.Message;
+                logger.LogError($"An error occurred when attempting to remove the certificate with alias {alias}: {ex.Message}");
+                complete.FailureMessage = $"An error occurred while removing {alias} from {ExtensionName}: " + ex.Message;
             }
             return complete;
         }
@@ -229,7 +230,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
             for (int i = 1; i < certList.Count; i++)
             {
                 X509Certificate2 childCert = certList.FirstOrDefault(p => p.IssuerName.RawData.SequenceEqual(parentCert.SubjectName.RawData) && !p.IssuerName.RawData.SequenceEqual(p.SubjectName.RawData));
-                if (root == null || string.IsNullOrEmpty(root.SerialNumber))
+                if (childCert == null || string.IsNullOrEmpty(childCert.SerialNumber))
                     throw new Exception("Invalid certificate chain.  End entity or issuing CA certificate not found.");
 
                 rtnList.Insert(0, childCert);

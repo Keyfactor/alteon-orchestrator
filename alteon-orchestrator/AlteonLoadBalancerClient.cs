@@ -1,4 +1,4 @@
-﻿// Copyright 2022 Keyfactor
+﻿// Copyright 2026 Keyfactor
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,13 +26,15 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
     public class AlteonLoadBalancerClient
     {
         private RestClient _restClient { get; set; }
-        ILogger logger = LogHandler.GetClassLogger<AlteonLoadBalancerClient>();
+        protected ILogger logger { get; set; }
 
-        public AlteonLoadBalancerClient(string baseUrl, string username, string password)
+        public AlteonLoadBalancerClient(string baseUrl, string username, string password, ILogger logger)
         {
+            this.logger = logger;
+
             var options = new RestClientOptions(baseUrl)
             {
-                RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true,
+                RemoteCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) => true, // this is to allow self-signed appliance certs
                 Authenticator = new HttpBasicAuthenticator(username, password)
             };
             _restClient = new RestClient(options);
@@ -40,7 +42,11 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
 
         public async Task<CertificateTableEntryCollection> GetCertificates()
         {
+            logger.MethodEntry();
+
             var request = new RestRequest(Endpoints.CertificateRepository);
+
+            logger.LogTrace($"making request to retrieve certificates from endpoint: {request.Resource}");
             try
             {
                 var response = await _restClient.GetAsync<CertificateTableEntryCollection>(request);
@@ -48,13 +54,20 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             }
             catch (Exception ex)
             {
+                logger.LogError($"An error occurred when attempting to retrieve the certificates from {_restClient.BuildUri(request)?.ToString()}");
                 logger.LogError(ex.Message, ex);
                 throw;
+            }
+            finally
+            {
+                logger.MethodExit();
             }
         }
 
         public async Task<CertificateTableEntryCollection> GetCertificatesById(string id)
         {
+            logger.MethodEntry();
+
             var url = $"{Endpoints.CertificateRepository}?filter=ID:{id}&filtertype=exact&props=ID,Type";
             var request = new RestRequest(url);
 
@@ -72,6 +85,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
                 logger.LogError(ex.Message, ex);
                 throw;
             }
+            finally { logger.MethodExit(); }
         }
 
         public string GetCertificateContent(string certId)
@@ -82,7 +96,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             request.AddQueryParameter("type", "srvcrt");
             var fullUri = _restClient.BuildUri(request);
 
-            logger.LogTrace($"making request to get certificate to uri: {fullUri}");
+            logger.LogTrace($"making request to get certificate from the endpoint: {fullUri}");
 
             try
             {
@@ -93,9 +107,11 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             }
             catch (Exception ex)
             {
+                logger.LogError($"An error occurred when attempting to retrieve the certificate with id '{certId}' from {fullUri}");
                 logger.LogError(ex.Message, ex);
                 throw;
             }
+            finally { logger.MethodExit(); }
         }
 
         public async Task AddCertificate(string alias, string pfxPassword, string certContents, string type, bool overwrite)
@@ -149,6 +165,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
         internal async Task RemoveCertificate(string alias)
         {
             logger.MethodEntry();
+            var url = string.Empty;
 
             var existing = (await GetCertificatesById(alias)).SlbNewSslCfgCertsTable;
             if (existing.Count == 0)
@@ -157,28 +174,32 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             }
             try
             {
-                existing.ForEach(c =>
+                foreach (var c in existing)
                 {
-                    var url = $"{Endpoints.CertificateRepository}/{c.ID}/{c.Type}";
+                    url = $"{Endpoints.CertificateRepository}/{c.ID}/{c.Type}";
                     var request = new RestRequest(url, Method.Delete);
                     var fullUri = _restClient.BuildUri(request);
                     logger.LogTrace($"making request to remove certificate to uri {fullUri}");
-                    var response = _restClient.DeleteAsync(request).Result;
+                    var response = await _restClient.DeleteAsync(request);
 
                     if (!response.IsSuccessful)
                     {
                         throw new Exception($"Failed to remove certificate: {alias}", response.ErrorException);
                     }
-                });
+                }
                 // apply and save changes
                 await ApplyAndSave();
             }
             catch (Exception ex)
             {
+                logger.LogError($"An error occurred when attempting to remove the certificate with alias {alias} via endpoint: '{url}'");
                 logger.LogError(ex.Message, ex);
                 throw;
             }
-            logger.MethodExit();
+            finally
+            {
+                logger.MethodExit();
+            }
         }
 
         /// <summary>
@@ -187,7 +208,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
         /// <returns></returns>
         internal async Task ApplyAndSave()
         {
-            logger.MethodEntry();           
+            logger.MethodEntry();
             logger.LogTrace($"making requests to apply and save changes");
             try
             {
