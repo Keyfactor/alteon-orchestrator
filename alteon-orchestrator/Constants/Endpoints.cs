@@ -1,4 +1,4 @@
-﻿// Copyright 2022 Keyfactor
+﻿// Copyright 2026 Keyfactor
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,10 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
     {
         public const string CertificateRepository = "config/SlbNewSslCfgCertsTable"; // HTTP DELETE to remove.
         public const string CertificateContent = "config/getcert";
-        public const string AddCertificate = "config/sslcertimport";        
+        public const string AddCertificate = "config/sslcertimport";
+        public const string ApplyChanges = "config?action=apply";      
+        public const string SaveChanges = "config?action=save";
+
+        public const string ApplyTable = "config/AgApplyTable";
     }
 }
