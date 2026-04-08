@@ -21,5 +21,23 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
         public const string INTERMEDIATE_CA = "inca";
         public const string KEY_ONLY = "key";
         public const string CERT_ONLY = "cert";
+
+        public static int AlteonCertTypeValue(string name)
+        {
+            switch (name)
+            {
+                case CERT_ONLY:
+                    return 3;
+                case KEY_ONLY:
+                    return 1;
+                case CERTIFICATE_AND_KEY:
+                    return 2;
+                case TRUSTED_CA:
+                    return 4;
+                case INTERMEDIATE_CA:
+                    return 5;
+                default: return 0;
+            };
+        }
     }
 }

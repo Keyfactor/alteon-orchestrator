@@ -68,8 +68,11 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
             var targetAssembly = Assembly.GetExecutingAssembly();
             var assemblyName = targetAssembly?.GetName();
             var version = assemblyName?.Version;
+            logger.LogTrace("\n");
+            logger.LogTrace("----------------------------------");
             logger.LogTrace("Keyfactor Orchestrator Extension for Alteon Load Balancer");
             logger.LogTrace($"{assemblyName?.Name ?? "unknown"} v{version}");
+            logger.LogTrace("----------------------------------\n");
         }
     }
 }

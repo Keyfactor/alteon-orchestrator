@@ -90,7 +90,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
             var certType = AlteonCertTypes.INTERMEDIATE_CA;
 
-            if (x509.PrivateKey != null)
+            if (x509.HasPrivateKey)
             {
                 logger.LogTrace($"Private key is present, setting cert type to {AlteonCertTypes.CERTIFICATE_AND_KEY}");
                 certType = AlteonCertTypes.CERTIFICATE_AND_KEY; // we import as a pair
@@ -122,7 +122,8 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                         // add key and cert separately.  
                         // this needs to be done in the following order: key, then cert (per Alteon support)                        
                         logger.LogTrace($"adding key and then certificate for certificate with alias {alias}");
-                        await aClient.AddCertificate(alias, pfxPassword, pemKey, AlteonCertTypes.KEY_ONLY, Overwrite);
+                                                                        
+                        await aClient.AddCertificate(alias, pfxPassword, pemKey, AlteonCertTypes.KEY_ONLY, Overwrite);                        
                         await aClient.AddCertificate(alias, pfxPassword, pemCert, AlteonCertTypes.CERT_ONLY, Overwrite);
                     }
                     else

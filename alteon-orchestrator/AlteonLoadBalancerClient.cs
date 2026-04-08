@@ -64,11 +64,12 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             }
         }
 
-        public async Task<CertificateTableEntryCollection> GetCertificatesById(string id)
+        public async Task<CertificateTableEntryCollection> GetCertificatesById(string id, string type)
         {
             logger.MethodEntry();
+            var typeInt = AlteonCertTypes.AlteonCertTypeValue(type);
 
-            var url = $"{Endpoints.CertificateRepository}?filter=ID:{id}&filtertype=exact&props=ID,Type";
+            var url = $"{Endpoints.CertificateRepository}?filter=ID:{id},Type:{typeInt}&filtertype=exact&props=ID,Name,Type";
             var request = new RestRequest(url);
 
             // the filter above _should_ return only the certs and keys with that alias.  
@@ -76,8 +77,9 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
 
             try
             {
+                logger.LogTrace($"retreiving certs from API endpoint: {url}");
                 var collection = await _restClient.GetAsync<CertificateTableEntryCollection>(request);
-                collection.SlbNewSslCfgCertsTable = collection.SlbNewSslCfgCertsTable.FindAll(c => c.ID == id);
+                collection.SlbNewSslCfgCertsTable = collection.SlbNewSslCfgCertsTable.FindAll(c => c.ID == id && c.Type == typeInt);
                 return collection;
             }
             catch (Exception ex)
@@ -118,8 +120,8 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
         {
             logger.MethodEntry();
             // first, see if a certificate with this alias/id already exists
-            logger.LogTrace($"checking to see if a certificate with alias {alias} exists..");
-            var existing = await GetCertificatesById(alias);
+            logger.LogTrace($"checking to see if an entry with alias '{alias}' and type '{type}' exists..");
+            var existing = await GetCertificatesById(alias, type);
             var replace = false;
             if (existing.SlbNewSslCfgCertsTable?.Count > 0)
             {
@@ -167,7 +169,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             logger.MethodEntry();
             var url = string.Empty;
 
-            var existing = (await GetCertificatesById(alias)).SlbNewSslCfgCertsTable;
+            var existing = (await GetCertificatesById(alias, AlteonCertTypes.CERT_ONLY)).SlbNewSslCfgCertsTable;
             if (existing.Count == 0)
             {
                 throw new Exception($"Certificate with alias {alias} not found.");
@@ -238,6 +240,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
                 var response = await _restClient.PostAsync(applyRequest);
                 if (!response.IsSuccessful)
                 {
+                    logger.LogError($"request to apply changes failed: {response.ErrorMessage}, {response.Content}");
                     throw new Exception($"Failed to apply changes.", response.ErrorException);
                 }
             }

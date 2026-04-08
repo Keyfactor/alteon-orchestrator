@@ -22,7 +22,7 @@
           "BlueprintAllowed": false,
           "PowerShell": false,
           "ServerRequired": true,
-          "ClientMachineDescription": "The hostname or IP address of the Alteon Load Balancer device.",
+          "ClientMachineDescription": "The hostname or IP address of the Alteon Load Balancer device (example: https://alteonlb.test.com).",
           "StorePathType": "",
           "StorePathValue": "",
           "StorePathDescription": "",
