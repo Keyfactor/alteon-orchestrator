@@ -18,6 +18,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Keyfactor.Logging;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using RestSharp;
 using RestSharp.Authenticators;
 
@@ -44,13 +45,19 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
         {
             logger.MethodEntry();
 
-            var request = new RestRequest(Endpoints.CertificateRepository);
+            var request = new RestRequest(Endpoints.CertificateRepository, Method.Get);
 
             logger.LogTrace($"making request to retrieve certificates from endpoint: {request.Resource}");
             try
             {
-                var response = await _restClient.GetAsync<CertificateTableEntryCollection>(request);
-                return response;
+                var response = await _restClient.ExecuteAsync(request);
+                if (!response.IsSuccessful) {
+                    logger.LogTrace($"the request failed with status code {response.StatusCode} and error message:");
+                    logger.LogTrace($"{response.ErrorMessage}");
+                    logger.LogTrace($"{response.Content}");
+                }
+                var certs = JsonConvert.DeserializeObject<CertificateTableEntryCollection>(response.Content);
+                return certs;
             }
             catch (Exception ex)
             {
@@ -78,7 +85,18 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             try
             {
                 logger.LogTrace($"retreiving certs from API endpoint: {url}");
-                var collection = await _restClient.GetAsync<CertificateTableEntryCollection>(request);
+                var response = await _restClient.GetAsync(request);
+                if (!response.IsSuccessStatusCode)
+                {
+                    logger.LogTrace($"the request failed with status code {response.StatusCode} and error message:");
+                    logger.LogTrace($"{response.ErrorMessage}");
+                    logger.LogTrace($"{response.Content}");
+                    throw response.ErrorException;
+                }
+
+                var collection = JsonConvert.DeserializeObject<CertificateTableEntryCollection>(response.Content);
+
+                //var collection = await _restClient.GetAsync<CertificateTableEntryCollection>(request);
                 collection.SlbNewSslCfgCertsTable = collection.SlbNewSslCfgCertsTable.FindAll(c => c.ID == id && c.Type == typeInt);
                 return collection;
             }
@@ -150,8 +168,6 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
                 {
                     throw new Exception($"Failed to add certificate: {alias}", response.ErrorException);
                 }
-                // apply and save changes
-                await ApplyAndSave();
             }
             catch (Exception ex)
             {
@@ -215,6 +231,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             try
             {
                 await ApplyChanges();
+                await Task.Delay(3000); // wait for MP to stabilize after apply
                 await LogApplyTable();
                 await SaveChanges();
             }
@@ -232,21 +249,25 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
         internal async Task ApplyChanges()
         {
             logger.MethodEntry();
-            var applyRequest = new RestRequest(Endpoints.ApplyChanges, Method.Post);
+
+            var applyRequest = new RestRequest(Endpoints.Config, Method.Post);
+            applyRequest.AddQueryParameter("action", "apply");
+            applyRequest.AddHeader("Accept", "application/json");
+
             var fullUri = _restClient.BuildUri(applyRequest);
-            logger.LogTrace($"making request to apply and save changes to uri {fullUri}");
+            logger.LogTrace($"making request to apply and save changes to {fullUri.ToString()}");
             try
             {
-                var response = await _restClient.PostAsync(applyRequest);
+                var response = await _restClient.ExecuteAsync(applyRequest);
                 if (!response.IsSuccessful)
                 {
-                    logger.LogError($"request to apply changes failed: {response.ErrorMessage}, {response.Content}");
+                    logger.LogError($"request to apply changes failed with error message: {response.ErrorMessage}\ncontent:{response.Content}");
                     throw new Exception($"Failed to apply changes.", response.ErrorException);
                 }
             }
             catch (Exception ex)
             {
-                logger.LogError(ex.Message, ex);
+                logger.LogError($"request to apply changest failed: {ex.Message}", ex);
                 throw;
             }
             finally
@@ -258,15 +279,19 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
         internal async Task SaveChanges()
         {
             logger.MethodEntry();
-            var saveRequest = new RestRequest(Endpoints.SaveChanges, Method.Post);
+            var saveRequest = new RestRequest(Endpoints.Config, Method.Post);
+            saveRequest.AddQueryParameter("action", "save");
+            saveRequest.AddHeader("Accept", "application/json");
+
             var fullUri = _restClient.BuildUri(saveRequest);
-            logger.LogTrace($"making request to save changes to uri {fullUri}");
+            logger.LogTrace($"making request to save changes to {fullUri.ToString()}");
             try
             {
-                var response = await _restClient.PostAsync(saveRequest);
+                var response = await _restClient.ExecuteAsync(saveRequest);
                 if (!response.IsSuccessful)
                 {
-                    throw new Exception($"Failed to save changes.", response.ErrorException);
+                    logger.LogError($"request to save changes failed: {response.ErrorMessage}, {response.Content}");
+                    throw new Exception($"Failed to save changes, status code : {response.StatusCode}\nerror message : {response.ErrorMessage}\ncontent:{response.Content}");
                 }
             }
             catch (Exception ex)
@@ -283,18 +308,23 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
         internal async Task LogApplyTable()
         {
             logger.MethodEntry();
-            var request = new RestRequest(Endpoints.ApplyTable);
+            var request = new RestRequest(Endpoints.ApplyTable, Method.Get);
+            request.AddHeader("Accept", "application/json");
             var fullUri = _restClient.BuildUri(request);
             logger.LogTrace($"making request to get apply table to uri {fullUri}");
             try
             {
-                var response = await _restClient.GetAsync(request);
+                var response = await _restClient.ExecuteAsync(request);
+                if (!response.IsSuccessful) { 
+                    logger.LogError($"There was an error getting the pending changes: {response.StatusCode}\t{response.ErrorMessage}\t{response.Content}");
+                    throw response.ErrorException;
+                }
                 logger.LogTrace($"Apply table response: {response.Content}");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex.Message, ex);
-                throw;
+                logger.LogError($"LogApplyTable failed (not critical) - {ex.Message}", ex);
+                // continuing.. non-critical
             }
             finally
             {

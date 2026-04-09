@@ -19,9 +19,9 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
         public const string CertificateRepository = "config/SlbNewSslCfgCertsTable"; // HTTP DELETE to remove.
         public const string CertificateContent = "config/getcert";
         public const string AddCertificate = "config/sslcertimport";
-        public const string ApplyChanges = "config?action=apply";      
-        public const string SaveChanges = "config?action=save";
-
+        //public const string ApplyChanges = "config?action=apply";      
+        //public const string SaveChanges = "config?action=save";
+        public const string Config = "config";
         public const string ApplyTable = "config/AgApplyTable";
     }
 }

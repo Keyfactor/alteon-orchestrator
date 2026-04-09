@@ -125,6 +125,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                                                                         
                         await aClient.AddCertificate(alias, pfxPassword, pemKey, AlteonCertTypes.KEY_ONLY, Overwrite);                        
                         await aClient.AddCertificate(alias, pfxPassword, pemCert, AlteonCertTypes.CERT_ONLY, Overwrite);
+                        await aClient.ApplyAndSave();
                     }
                     else
                     {
