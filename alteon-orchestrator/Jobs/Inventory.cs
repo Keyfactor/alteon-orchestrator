@@ -1,4 +1,4 @@
-﻿// Copyright 2022 Keyfactor
+﻿// Copyright 2026 Keyfactor
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,27 +25,25 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 {
     public class Inventory : JobBase, IInventoryJobExtension
     {
-        ILogger logger = LogHandler.GetClassLogger<Inventory>();
-
         public Inventory(IPAMSecretResolver resolver)
         {
             _resolver = resolver;
+            logger = LogHandler.GetClassLogger<Inventory>();
         }
 
         public JobResult ProcessJob(InventoryJobConfiguration config, SubmitInventoryUpdate submitInventoryUpdate)
         {
-            InitializeStore(config, logger);
+            InitializeStore(config);
 
             List<CurrentInventoryItem> certs = new List<CurrentInventoryItem>();
             try
             {
-                var tableCerts = aClient.GetCertificates().Result;
+                var tableCerts = aClient.GetCertificates().GetAwaiter().GetResult();
                 //"Generate" indicates whether a cert actually exists, or just the entry.  5 means it exists.
                 var certsOnly = tableCerts.SlbNewSslCfgCertsTable.Where(c => c.Type == 3 && c.Generate == 5).ToList();
                 var keysOnly = tableCerts.SlbNewSslCfgCertsTable.Where(c => c.Type == 1);
 
                 certsOnly.ForEach(certEntry => {
-                    var certStrings = new List<string>();
                     var certContent = aClient.GetCertificateContent(certEntry.ID);
 
                     certs.Add(new CurrentInventoryItem()
