@@ -218,7 +218,7 @@ the Keyfactor Command Portal
    | --------- |---------------------------------------------------------|
    | Category | Select "Alteon Load Balancer" or the customized certificate store name from the previous step. |
    | Container | Optional container to associate certificate store with. |
-   | Client Machine | The hostname or IP address of the Alteon Load Balancer device. |
+   | Client Machine | The hostname or IP address of the Alteon Load Balancer device (example: https://alteonlb.test.com). |
    | Store Path |  |
    | Orchestrator | Select an approved orchestrator capable of managing `AlteonLB` certificates. Specifically, one with the `` capability. |
 
@@ -243,7 +243,7 @@ the Keyfactor Command Portal
    | --------- | ----------- |
    | Category | Select "Alteon Load Balancer" or the customized certificate store name from the previous step. |
    | Container | Optional container to associate certificate store with. |
-   | Client Machine | The hostname or IP address of the Alteon Load Balancer device. |
+   | Client Machine | The hostname or IP address of the Alteon Load Balancer device (example: https://alteonlb.test.com). |
    | Store Path |  |
    | Orchestrator | Select an approved orchestrator capable of managing `AlteonLB` certificates. Specifically, one with the `` capability. |
 

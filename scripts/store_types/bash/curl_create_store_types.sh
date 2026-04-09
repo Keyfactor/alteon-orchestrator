@@ -70,7 +70,7 @@ create_store_type() {
 }
 
 # ---------------------------------------------------------------------------
-# AlteonLB — The hostname or IP address of the Alteon Load Balancer device.
+# AlteonLB — The hostname or IP address of the Alteon Load Balancer device (example: https://alteonlb.test.com).
 # ---------------------------------------------------------------------------
 create_store_type "AlteonLB" '{
   "Name": "Alteon Load Balancer",

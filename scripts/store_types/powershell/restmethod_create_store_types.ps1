@@ -62,7 +62,7 @@ function New-StoreType {
 }
 
 # ---------------------------------------------------------------------------
-# AlteonLB — The hostname or IP address of the Alteon Load Balancer device.
+# AlteonLB — The hostname or IP address of the Alteon Load Balancer device (example: https://alteonlb.test.com).
 # ---------------------------------------------------------------------------
 New-StoreType "AlteonLB" @'
 {
