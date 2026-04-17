@@ -42,7 +42,7 @@
           "PrivateKeyAllowed": "Optional",
           "JobProperties": [],
           "Properties": [],
-          "EntryParameters": []
+          "EntryParameters": [`]
         }
       ]
     }
