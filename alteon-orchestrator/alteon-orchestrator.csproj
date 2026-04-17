@@ -24,7 +24,6 @@
     <PackageReference Include="Keyfactor.Orchestrators.IOrchestratorRegistrationUpdater" Version="1.0.3" />
     <PackageReference Include="Keyfactor.PKI" Version="8.3.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="RestSharp" Version="114.0.0" />
     <PackageReference Include="System.Formats.Asn1" Version="10.0.5" />
     <PackageReference Include="System.Linq" Version="4.3.0" />
