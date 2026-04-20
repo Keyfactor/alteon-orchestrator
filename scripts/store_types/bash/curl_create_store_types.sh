@@ -70,31 +70,35 @@ create_store_type() {
 }
 
 # ---------------------------------------------------------------------------
-# AlteonLB — The Alteon Load Balancer Server and port
+# AlteonLB — The hostname or IP address of the Alteon Load Balancer device (example: https://alteonlb.test.com).
 # ---------------------------------------------------------------------------
 create_store_type "AlteonLB" '{
   "Name": "Alteon Load Balancer",
   "ShortName": "AlteonLB",
-  "Capability": "AlteonLB",
-  "StorePathDescription": "This value isn't used for this integration (other than to uniquely identify the cert store in certificate searches).",
+  "LocalStore": false,
+  "BlueprintAllowed": false,
+  "PowerShell": false,
+  "ServerRequired": true,
+  "StorePathType": "",
+  "StorePathValue": "",
+  "StorePathDescription": "",
   "SupportedOperations": {
     "Add": true,
     "Remove": true,
     "Enrollment": false,
     "Discovery": false,
-    "Inventory": true
+    "Create": false
   },
-  "Properties": [],
   "PasswordOptions": {
     "EntrySupported": false,
     "StoreRequired": false,
     "Style": "Default"
   },
+  "CustomAliasAllowed": "Optional",
   "PrivateKeyAllowed": "Optional",
-  "ServerRequired": true,
-  "PowerShell": false,
-  "BlueprintAllowed": false,
-  "CustomAliasAllowed": "Optional"
+  "JobProperties": [],
+  "Properties": [],
+  "EntryParameters": []
 }'
 
 
