@@ -42,7 +42,22 @@
           "PrivateKeyAllowed": "Optional",
           "JobProperties": [],
           "Properties": [],
-          "EntryParameters": [`]
+          "EntryParameters": [
+            {
+              "Name": "VirtualServiceBindings",
+              "DisplayName": "Virtual Service Bindings",
+              "Type": "String",
+              "DefaultValue": "",
+              "DependsOn": "",
+              "RequiredWhen": {
+                "HasPrivateKey": false,
+                "OnAdd": true,
+                "OnRemove": false,
+                "OnReenrollment": false
+              },
+              "Description": "Comma-separated list of virtual service bindings in 'virtId:servicePort' format. Each binding identifies the virtual server ID and the service port to which the certificate should be bound. Example: '1:443' for a single binding, or '1:443,2:443,my-virt:8443' for multiple bindings. Returned during inventory to show which virtual services each certificate is currently bound to."
+            }
+          ]
         }
       ]
     }
