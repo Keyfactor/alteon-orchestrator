@@ -18,6 +18,7 @@ using Keyfactor.Logging;
 using Keyfactor.Orchestrators.Extensions;
 using Keyfactor.Orchestrators.Extensions.Interfaces;
 using Microsoft.Extensions.Logging;
+using System.Reflection;
 
 namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 {
