@@ -1,4 +1,4 @@
-﻿// Copyright 2026 Keyfactor
+// Copyright 2026 Keyfactor
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -223,18 +223,18 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
             return complete;
         }
 
-        // ── NEW: Binding operations ───────────────────────────────────────────
+        // ── Binding operations ────────────────────────────────────────────────
 
         /// <summary>
         /// Binds a certificate to the virtual services specified in the
         /// VirtualServiceBindings entry parameter.
         ///
         /// For each virtual service:
-        ///   - Fetches the current service state from the device
+        ///   - Resolves the service from SlbNewCfgEnhVirtServicesTable by name + port
         ///   - If not found → fails with clear message
-        ///   - If CertGroup is set → SNI path (add to group or create group)
-        ///   - Otherwise → non-SNI path (set SrvCert + ensure policy exists)
-        ///   - If a DIFFERENT cert is already bound → fails with clear message
+        ///   - If ServCertGrpMark == 2 → SNI path (add to cert group)
+        ///   - Otherwise → non-SNI path (set ServCert + SSLpol in second-part table)
+        ///   - If a DIFFERENT cert is already bound → fails unless Overwrite is set
         ///   - If the SAME cert is already bound → succeeds (idempotent / renewal)
         ///
         /// Apply+Save is called once after all bindings succeed.
@@ -249,13 +249,11 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                 JobHistoryId = jobHistoryId
             };
 
-            // ── Validate entry parameter ─────────────────────────────────────
+            // VirtualServiceBindings is optional — if not supplied the cert is
+            // added to the device repository with no virtual service binding.
             if (string.IsNullOrWhiteSpace(bindingsParam))
             {
-                complete.FailureMessage =
-                    "Entry parameter 'VirtualServiceBindings' is required. " +
-                    "Provide one or more 'virtId:port' pairs, comma-separated. " +
-                    "Example: '1:443' or '1:443,2:443,my-virt:8443'.";
+                complete.Result = OrchestratorJobStatusJobResult.Success;
                 return complete;
             }
 
@@ -270,7 +268,6 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                 return complete;
             }
 
-            // ── Process each binding ─────────────────────────────────────────
             var errors = new List<string>();
 
             foreach (var binding in bindings)
@@ -286,37 +283,34 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                         continue;
                     }
 
-                    if (!string.IsNullOrWhiteSpace(svc.CertGroup))
+                    if (svc.CertGrpMark == 2)
                     {
-                        // ── SNI path ─────────────────────────────────────────
-                        logger.LogDebug($"Virtual service {binding} uses cert group '{svc.CertGroup}' — SNI path");
-                        await HandleSniBindingAsync(svc.CertGroup, certId);
+                        // SNI path: ServCert holds the cert group name
+                        logger.LogDebug($"Virtual service {binding} uses cert group '{svc.ServCert}' — SNI path");
+                        await HandleSniBindingAsync(svc, certId);
                     }
                     else
                     {
-                        // ── Non-SNI path ──────────────────────────────────────
-                        // Conflict check: a DIFFERENT cert is already bound
-                        if (!string.IsNullOrWhiteSpace(svc.SrvCert)
-                            && !string.Equals(svc.SrvCert, certId,
-                                StringComparison.OrdinalIgnoreCase))
+                        // Non-SNI path: direct ServCert binding in second-part table
+                        if (!string.IsNullOrWhiteSpace(svc.ServCert)
+                            && !string.Equals(svc.ServCert, certId, StringComparison.OrdinalIgnoreCase))
                         {
                             if (!overwrite)
                             {
                                 errors.Add(
                                     $"Virtual service '{binding}' already has cert " +
-                                    $"'{svc.SrvCert}' bound. " +
+                                    $"'{svc.ServCert}' bound. " +
                                     $"Enable Overwrite to replace the existing binding.");
                                 continue;
                             }
-
                             logger.LogDebug(
-                                $"Overwrite enabled — replacing cert '{svc.SrvCert}' " +
+                                $"Overwrite enabled — replacing cert '{svc.ServCert}' " +
                                 $"with '{certId}' on {binding}");
                         }
 
                         var policyId = $"KF-{binding.VirtId}-{binding.ServicePort}";
                         await aClient.EnsureSslPolicyAsync(policyId);
-                        await aClient.BindCertificateDirectAsync(binding, certId, policyId);
+                        await aClient.BindCertificateAsync(svc, certId, policyId, certGrpMark: 1);
                         logger.LogDebug($"Bound cert '{certId}' to {binding} (non-SNI)");
                     }
                 }
@@ -332,7 +326,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                 return complete;
             }
 
-            // ── Apply + Save once after all bindings ─────────────────────────
+            // Apply + Save once after all bindings succeed
             await aClient.ApplyAndSave();
 
             complete.Result = OrchestratorJobStatusJobResult.Success;
@@ -342,7 +336,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
         /// <summary>
         /// Clears all virtual service bindings for the given certificate.
         ///
-        /// For non-SNI bindings: clears SrvCert, leaves SslPolName untouched.
+        /// For non-SNI bindings: clears ServCert in the second-part table.
         /// For SNI bindings:
         ///   - If cert is the DEFAULT cert for a group → fails with clear message
         ///   - If cert is a non-default member → removes it from the group
@@ -361,60 +355,56 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
             try
             {
-                var allServices = await aClient.GetAllVirtualServicesAsync();
-                var allGroups = await aClient.GetAllCertGroupsAsync();
+                var allServices = await aClient.GetAllResolvedServicesAsync();
+                var allGroups   = await aClient.GetAllCertGroupsAsync();
 
-                var errors = new List<string>();
+                var errors  = new List<string>();
                 var changed = false;
 
-                // ── Non-SNI: clear SrvCert where it matches ───────────────────
-                foreach (var svc in allServices)
-                {
-                    if (!string.Equals(svc.SrvCert, certId,
-                            StringComparison.OrdinalIgnoreCase))
-                        continue;
+                // Non-SNI: block removal if cert is actively bound to any virtual service.
+                // Clearing ServCert without a replacement would leave the virtual service
+                // with an SSL policy but no certificate, breaking SSL termination.
+                // The operator must either bind a replacement cert first (via an
+                // overwrite Add), or manually clear the binding in the Alteon UI.
+                var boundServices = allServices
+                    .Where(s => s.CertGrpMark == 1 &&
+                                string.Equals(s.ServCert, certId, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
 
-                    var binding = new VirtualServiceBinding(svc.VirtIndex, svc.ServicePort);
-                    try
-                    {
-                        // Pass empty string to clear — leave SslPolName alone
-                        await aClient.BindCertificateDirectAsync(binding, string.Empty, null);
-                        changed = true;
-                        logger.LogDebug($"Cleared cert binding on {binding} (non-SNI)");
-                    }
-                    catch (Exception ex)
-                    {
-                        errors.Add($"Failed to clear binding on {binding}: {ex.Message}");
-                    }
+                if (boundServices.Count > 0)
+                {
+                    var serviceList = string.Join(", ",
+                        boundServices.Select(s => $"{s.ServIndex}:{s.VirtPort}"));
+                    complete.FailureMessage =
+                        $"Cannot remove cert '{certId}' — it is currently bound to " +
+                        $"virtual service(s): {serviceList}. " +
+                        $"Bind a replacement certificate to those service(s) first using an " +
+                        $"Add with Overwrite enabled, or clear the binding(s) manually " +
+                        $"in the Alteon UI before removing.";
+                    return complete;
                 }
 
-                // ── SNI: handle cert group membership ─────────────────────────
-                // Build lookup: groupId → virtual services using that group
+                // SNI: handle cert group membership
+                // Build lookup: groupId → services that reference it (CertGrpMark == 2)
                 var groupToServices = allServices
-                    .Where(s => !string.IsNullOrWhiteSpace(s.CertGroup))
-                    .GroupBy(s => s.CertGroup)
-                    .ToDictionary(g => g.Key, g => g.ToList());
+                    .Where(s => s.CertGrpMark == 2 && !string.IsNullOrWhiteSpace(s.ServCert))
+                    .GroupBy(s => s.ServCert, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
 
                 foreach (var group in allGroups)
                 {
-                    if (!group.Certs.Any(c => string.Equals(c, certId,
-                            StringComparison.OrdinalIgnoreCase)))
+                    if (!group.Certs.Any(c => string.Equals(c, certId, StringComparison.OrdinalIgnoreCase)))
                         continue;
 
-                    // Safety check: refuse if this cert is the group's default
-                    if (string.Equals(group.DefaultCert, certId,
-                            StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(group.DefaultCert, certId, StringComparison.OrdinalIgnoreCase))
                     {
-                        var affectedServices = groupToServices.TryGetValue(
-                            group.ID, out var svcs)
-                            ? string.Join(", ", svcs.Select(s =>
-                                $"{s.VirtIndex}:{s.ServicePort}"))
+                        var affectedServices = groupToServices.TryGetValue(group.ID, out var svcs)
+                            ? string.Join(", ", svcs.Select(s => $"{s.ServIndex}:{s.VirtPort}"))
                             : "unknown";
 
                         errors.Add(
                             $"Cannot remove cert '{certId}' — it is the default cert " +
-                            $"for group '{group.ID}' (used by virtual service(s): " +
-                            $"{affectedServices}). " +
+                            $"for group '{group.ID}' (used by virtual service(s): {affectedServices}). " +
                             $"Reassign the default cert on group '{group.ID}' before removing.");
                         continue;
                     }
@@ -437,7 +427,6 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
                     return complete;
                 }
 
-                // Apply + Save only if something changed
                 if (changed)
                     await aClient.ApplyAndSave();
 
@@ -454,24 +443,25 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
         // ── SNI helper ────────────────────────────────────────────────────────
 
-        private async Task HandleSniBindingAsync(string groupId, string certId)
+        private async Task HandleSniBindingAsync(ResolvedVirtService svc, string certId)
         {
-            var group = await aClient.GetCertGroupAsync(groupId);
+            var groupId = svc.ServCert; // In SNI mode ServCert holds the group name
+            var group   = await aClient.GetCertGroupAsync(groupId);
 
             if (group == null)
             {
-                // Group referenced by virtual service doesn't exist yet — create it
                 logger.LogDebug($"Cert group '{groupId}' not found — creating");
                 await aClient.CreateCertGroupAsync(groupId, certId);
+                // Update the service to point at the new group (mark = 2)
+                await aClient.BindCertificateAsync(svc, groupId, svc.SSLpol, certGrpMark: 2);
             }
             else
             {
-                // Group exists — add cert to it (idempotent)
                 await aClient.AddCertToGroupAsync(groupId, certId);
             }
         }
 
-        // ── PFX extraction helpers (unchanged) ────────────────────────────────
+        // ── PFX extraction helpers ────────────────────────────────────────────
 
         private (string, string) GetPemFromPfx(byte[] pfxBytes, string pfxPassword)
         {

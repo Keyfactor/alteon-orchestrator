@@ -43,7 +43,7 @@ Now we can navigate to the Keyfactor platform and create the store type for the 
 
    | Name | Display Name | Type | Required for Add | Required for Remove | Description |
    | ---- | ------------ | ---- | :--------------: | :-----------------: | ----------- |
-   | `VirtualServiceBindings` | Virtual Service Bindings | String | ✅ | ❌ | Comma-separated list of virtual service bindings in `virtId:servicePort` format. Specifies which virtual services the certificate should be bound to. See [Virtual Service Bindings](#virtual-service-bindings) for details. |
+   | `VirtualServiceBindings` | Virtual Service Bindings | String | ❌ | ❌ | Comma-separated list of virtual service bindings in `virtId:servicePort` format. Specifies which virtual services the certificate should be bound to. See [Virtual Service Bindings](#virtual-service-bindings) for details. |
 
 ### Install the Extension on the Orchestrator
 
@@ -154,6 +154,21 @@ If a policy with this name does not already exist on the device, the integration
 If a policy with this name already exists — for example, from a previous enrollment or from a policy created manually with the same name — the existing policy is left unchanged. This preserves any custom settings an administrator may have applied.
 
 > **Note:** SSL policy management applies only to non-SNI virtual services. In SNI mode, the certificate group configuration governs SSL behaviour and no policy is created or modified by this integration.
+
+### Removing Certificates
+
+Before a certificate can be removed from the Alteon certificate repository, it must not be actively bound to any virtual service. If the certificate is currently bound, the Remove job will fail with a descriptive error identifying the affected virtual service(s):
+
+> *Cannot remove cert 'my-cert' — it is currently bound to virtual service(s): webssl:443. Bind a replacement certificate to those service(s) first using an Add with Overwrite enabled, or clear the binding(s) manually in the Alteon UI before removing.*
+
+This restriction exists because removing a certificate that is actively serving SSL traffic would leave the virtual service with no certificate, immediately breaking SSL termination on that service — and potentially terminating the REST API connection used to manage the device itself.
+
+To remove a certificate that is currently bound to one or more virtual services, choose one of the following approaches:
+
+- **Replace it first (recommended):** Enroll a new certificate using an Add job with the same `VirtualServiceBindings` value and Overwrite enabled. Once the new certificate is bound, the old one can be safely removed.
+- **Clear the binding manually:** In the Alteon management UI, navigate to the virtual service and clear the certificate binding, then re-run the Remove job.
+
+> **Note:** For SNI certificate groups, an additional restriction applies: a certificate that is the *default* certificate for a group cannot be removed. The default cert must be reassigned to another member of the group in the Alteon UI before removal.
 
 ### Overwrite Behaviour
 

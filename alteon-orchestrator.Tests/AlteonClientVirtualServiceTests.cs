@@ -21,15 +21,16 @@ using Xunit;
 namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
 {
     /// <summary>
-    /// Unit tests for the new virtual-service and binding methods that will be
-    /// added to AlteonLoadBalancerClient.
+    /// Unit tests for the virtual-service and binding methods on AlteonLoadBalancerClient.
     ///
-    /// These tests mock the HTTP layer so no live Alteon device is needed.
-    /// The MockHttp library intercepts RestSharp's underlying HttpClient calls.
+    /// The Alteon API splits virtual service configuration across multiple "part" tables:
+    ///   - SlbNewCfgEnhVirtServicesTable       — main table (ServIndex, Index, VirtPort)
+    ///   - SlbNewCfgEnhVirtServicesSecondPartTable — ServCert, SSLpol
+    ///   - SlbNewCfgEnhVirtServicesFifthPartTable  — ServCertGrpMark (1=cert, 2=group)
     ///
-    /// NOTE: These tests describe the expected behaviour of methods that do not
-    /// yet exist in the client. They are intentionally written first (TDD).
-    /// Add the corresponding methods to AlteonLoadBalancerClient to make them pass.
+    /// GetAllResolvedServicesAsync fetches all three in parallel and joins them.
+    /// GetVirtualServiceAsync uses that to find a service by name + port.
+    /// BindCertificateAsync writes to the second and fifth part tables.
     /// </summary>
     public class AlteonClientVirtualServiceTests
     {
@@ -37,234 +38,286 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
         private const string Username = "admin";
         private const string Password = "admin";
 
-        // ── GetAllVirtualServices ────────────────────────────────────────────
+        private const string MainUrl   = $"{BaseUrl}/config/SlbNewCfgEnhVirtServicesTable";
+        private const string SecondUrl = $"{BaseUrl}/config/SlbNewCfgEnhVirtServicesSecondPartTable";
+        private const string FifthUrl  = $"{BaseUrl}/config/SlbNewCfgEnhVirtServicesFifthPartTable";
+        private const string GroupUrl  = $"{BaseUrl}/config/SlbNewSslCfgGroupsTable";
+        private const string PolicyUrl = $"{BaseUrl}/config/SlbNewSslCfgSSLPolTable";
+
+        // ── GetAllResolvedServicesAsync ───────────────────────────────────────
 
         [Fact]
-        public async Task GetAllVirtualServices_ReturnsAllEntries()
+        public async Task GetAllResolvedServices_JoinsAllThreeTables()
         {
             var handler = new MockHttpMessageHandler();
-            handler.When($"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
+
+            handler.When(HttpMethod.Get, MainUrl)
                    .Respond("application/json",
                        AlteonResponseFactory.VirtServiceTableResponse(new[]
                        {
-                           AlteonResponseFactory.VirtServiceEntry("1", "443", srvCert: "my-cert"),
-                           AlteonResponseFactory.VirtServiceEntry("2", "443", srvCert: "my-cert"),
-                           AlteonResponseFactory.VirtServiceEntry("3", "8443")   // unbound
+                           AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443),
+                           AlteonResponseFactory.VirtServiceEntry("web",    1, 80)
+                       }));
+
+            handler.When(HttpMethod.Get, SecondUrl)
+                   .Respond("application/json",
+                       AlteonResponseFactory.VirtServiceSecondPartTableResponse(new[]
+                       {
+                           AlteonResponseFactory.VirtServiceSecondPartEntry(
+                               "webssl", 1, servCert: "my-cert", sslPol: "KF-webssl-443")
+                       }));
+
+            handler.When(HttpMethod.Get, FifthUrl)
+                   .Respond("application/json",
+                       AlteonResponseFactory.VirtServiceFifthPartTableResponse(new[]
+                       {
+                           AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, certGrpMark: 1),
+                           AlteonResponseFactory.VirtServiceFifthPartEntry("web",    1, certGrpMark: 1)
                        }));
 
             var client = BuildClient(handler);
-            var result = await client.GetAllVirtualServicesAsync();
+            var result = await client.GetAllResolvedServicesAsync();
 
-            result.Should().HaveCount(3);
-            result[0].VirtIndex.Should().Be("1");
-            result[0].SrvCert.Should().Be("my-cert");
-            result[2].SrvCert.Should().BeNullOrEmpty();
+            result.Should().HaveCount(2);
+
+            var webssl = result[0];
+            webssl.ServIndex.Should().Be("webssl");
+            webssl.VirtPort.Should().Be(443);
+            webssl.ServCert.Should().Be("my-cert");
+            webssl.SSLpol.Should().Be("KF-webssl-443");
+            webssl.CertGrpMark.Should().Be(1);
+
+            var web = result[1];
+            web.ServIndex.Should().Be("web");
+            web.ServCert.Should().BeEmpty();  // no entry in second-part table
         }
 
         [Fact]
-        public async Task GetAllVirtualServices_EmptyTable_ReturnsEmptyList()
+        public async Task GetAllResolvedServices_EmptyTables_ReturnsEmptyList()
         {
             var handler = new MockHttpMessageHandler();
-            handler.When($"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                   .Respond("application/json",
-                       AlteonResponseFactory.VirtServiceTableResponse(new List<object>()));
+
+            handler.When(HttpMethod.Get, MainUrl)
+                   .Respond("application/json", AlteonResponseFactory.EmptyVirtServiceTableResponse());
+            handler.When(HttpMethod.Get, SecondUrl)
+                   .Respond("application/json", AlteonResponseFactory.EmptyVirtServiceSecondPartTableResponse());
+            handler.When(HttpMethod.Get, FifthUrl)
+                   .Respond("application/json", AlteonResponseFactory.EmptyVirtServiceFifthPartTableResponse());
 
             var client = BuildClient(handler);
-            var result = await client.GetAllVirtualServicesAsync();
+            var result = await client.GetAllResolvedServicesAsync();
 
             result.Should().BeEmpty();
         }
 
-        // ── GetVirtualService (single) ───────────────────────────────────────
+        // ── GetVirtualServiceAsync ────────────────────────────────────────────
 
         [Fact]
-        public async Task GetVirtualService_NonSniBinding_ReturnsSrvCert()
+        public async Task GetVirtualService_MatchesByServIndexAndPort()
         {
             var handler = new MockHttpMessageHandler();
-            handler.When($"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
+
+            // Virtual server validation — webssl exists
+            handler.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgEnhVirtServerTable")
                    .Respond("application/json",
-                       AlteonResponseFactory.SingleVirtServiceResponse(
-                           "1", "443", srvCert: "my-cert", sslPolName: "MY-POL"));
+                       AlteonResponseFactory.VirtServerTableResponse(new[]
+                       {
+                           AlteonResponseFactory.VirtServerEntry("webssl")
+                       }));
+
+            handler.When(HttpMethod.Get, MainUrl)
+                   .Respond("application/json",
+                       AlteonResponseFactory.VirtServiceTableResponse(new[]
+                       {
+                           AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443),
+                           AlteonResponseFactory.VirtServiceEntry("webssl", 2, 80)
+                       }));
+            handler.When(HttpMethod.Get, SecondUrl)
+                   .Respond("application/json",
+                       AlteonResponseFactory.VirtServiceSecondPartTableResponse(new[]
+                       {
+                           AlteonResponseFactory.VirtServiceSecondPartEntry(
+                               "webssl", 1, servCert: "my-cert")
+                       }));
+            handler.When(HttpMethod.Get, FifthUrl)
+                   .Respond("application/json",
+                       AlteonResponseFactory.EmptyVirtServiceFifthPartTableResponse());
 
             var client = BuildClient(handler);
-            var result = await client.GetVirtualServiceAsync("1", "443");
+            var result = await client.GetVirtualServiceAsync("webssl", "443");
 
             result.Should().NotBeNull();
-            result!.SrvCert.Should().Be("my-cert");
-            result.CertGroup.Should().BeNullOrEmpty();
-            result.SslPolName.Should().Be("MY-POL");
+            result!.ServIndex.Should().Be("webssl");
+            result.VirtPort.Should().Be(443);
+            result.Index.Should().Be(1);
+            result.ServCert.Should().Be("my-cert");
         }
 
         [Fact]
-        public async Task GetVirtualService_SniBinding_ReturnsCertGroup()
+        public async Task GetVirtualService_PortNotFound_ReturnsNull()
         {
             var handler = new MockHttpMessageHandler();
-            handler.When($"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
+
+            handler.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgEnhVirtServerTable")
                    .Respond("application/json",
-                       AlteonResponseFactory.SingleVirtServiceResponse(
-                           "1", "443", certGroup: "KF-GRP-1-443"));
+                       AlteonResponseFactory.VirtServerTableResponse(new[]
+                       {
+                           AlteonResponseFactory.VirtServerEntry("webssl")
+                       }));
+
+            handler.When(HttpMethod.Get, MainUrl)
+                   .Respond("application/json",
+                       AlteonResponseFactory.VirtServiceTableResponse(new[]
+                       {
+                           AlteonResponseFactory.VirtServiceEntry("webssl", 1, 80) // only port 80
+                       }));
+            handler.When(HttpMethod.Get, SecondUrl)
+                   .Respond("application/json", AlteonResponseFactory.EmptyVirtServiceSecondPartTableResponse());
+            handler.When(HttpMethod.Get, FifthUrl)
+                   .Respond("application/json", AlteonResponseFactory.EmptyVirtServiceFifthPartTableResponse());
 
             var client = BuildClient(handler);
-            var result = await client.GetVirtualServiceAsync("1", "443");
-
-            result!.CertGroup.Should().Be("KF-GRP-1-443");
-            result.SrvCert.Should().BeNullOrEmpty();
-        }
-
-        [Fact]
-        public async Task GetVirtualService_NotFound_ReturnsNull()
-        {
-            var handler = new MockHttpMessageHandler();
-            handler.When($"{BaseUrl}/config/SlbNewCfgVirtServicesTable/99/443")
-                   .Respond(HttpStatusCode.MethodNotAllowed,
-                       "application/json",
-                       AlteonResponseFactory.ErrorResponse("405 Method Not Allowed"));
-
-            var client = BuildClient(handler);
-            var result = await client.GetVirtualServiceAsync("99", "443");
+            var result = await client.GetVirtualServiceAsync("webssl", "443"); // 443 not found
 
             result.Should().BeNull();
         }
 
-        // ── GetBindingsForCertificate ────────────────────────────────────────
+        // ── GetBindingsForCertificateAsync ────────────────────────────────────
 
         [Fact]
         public async Task GetBindingsForCertificate_NonSni_ReturnsMatchingServices()
         {
-            var handler = new MockHttpMessageHandler();
-            handler.When($"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                   .Respond("application/json",
-                       AlteonResponseFactory.VirtServiceTableResponse(new[]
-                       {
-                           AlteonResponseFactory.VirtServiceEntry("1", "443", srvCert: "target-cert"),
-                           AlteonResponseFactory.VirtServiceEntry("2", "443", srvCert: "target-cert"),
-                           AlteonResponseFactory.VirtServiceEntry("3", "443", srvCert: "other-cert"),
-                           AlteonResponseFactory.VirtServiceEntry("4", "443")  // unbound
-                       }));
-            handler.When($"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
-                   .Respond("application/json",
-                       AlteonResponseFactory.EmptyCertGroupTableResponse());
+            var handler = SetupThreePartTables(handler: new MockHttpMessageHandler(),
+                mainEntries: new[]
+                {
+                    AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443),
+                    AlteonResponseFactory.VirtServiceEntry("web",    1, 80)
+                },
+                secondEntries: new[]
+                {
+                    AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: "target-cert"),
+                    AlteonResponseFactory.VirtServiceSecondPartEntry("web",    1, servCert: "other-cert")
+                },
+                fifthEntries: new[]
+                {
+                    AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, certGrpMark: 1),
+                    AlteonResponseFactory.VirtServiceFifthPartEntry("web",    1, certGrpMark: 1)
+                });
+
+            handler.When(HttpMethod.Get, GroupUrl)
+                   .Respond("application/json", AlteonResponseFactory.EmptyCertGroupTableResponse());
 
             var client = BuildClient(handler);
             var bindings = await client.GetBindingsForCertificateAsync("target-cert");
 
-            bindings.Should().HaveCount(2);
-            bindings.Should().Contain(b => b.VirtId == "1" && b.ServicePort == "443");
-            bindings.Should().Contain(b => b.VirtId == "2" && b.ServicePort == "443");
+            bindings.Should().HaveCount(1);
+            bindings[0].VirtId.Should().Be("webssl");
+            bindings[0].ServicePort.Should().Be("443");
         }
 
         [Fact]
         public async Task GetBindingsForCertificate_SniGroup_ReturnsGroupBindings()
         {
-            var handler = new MockHttpMessageHandler();
-            // No direct SrvCert bindings
-            handler.When($"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                   .Respond("application/json",
-                       AlteonResponseFactory.VirtServiceTableResponse(new[]
-                       {
-                           AlteonResponseFactory.VirtServiceEntry("1", "443",
-                               certGroup: "KF-GRP-1-443")
-                       }));
-            // Cert group contains the target cert
-            handler.When($"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
+            var handler = SetupThreePartTables(new MockHttpMessageHandler(),
+                mainEntries: new[]
+                {
+                    AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443)
+                },
+                secondEntries: new[]
+                {
+                    // ServCert holds the group name when CertGrpMark == 2
+                    AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: "KF-GRP-webssl-443")
+                },
+                fifthEntries: new[]
+                {
+                    AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, certGrpMark: 2)
+                });
+
+            handler.When(HttpMethod.Get, GroupUrl)
                    .Respond("application/json",
                        AlteonResponseFactory.CertGroupTableResponse(new[]
                        {
                            AlteonResponseFactory.CertGroupEntry(
-                               "KF-GRP-1-443", "target-cert", "target-cert", "other-cert")
+                               "KF-GRP-webssl-443", "target-cert", "target-cert", "other-cert")
                        }));
 
             var client = BuildClient(handler);
             var bindings = await client.GetBindingsForCertificateAsync("target-cert");
 
             bindings.Should().HaveCount(1);
-            bindings[0].VirtId.Should().Be("1");
+            bindings[0].VirtId.Should().Be("webssl");
             bindings[0].ServicePort.Should().Be("443");
         }
 
-        [Fact]
-        public async Task GetBindingsForCertificate_NoCertIdMatch_ReturnsEmpty()
-        {
-            var handler = new MockHttpMessageHandler();
-            handler.When($"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                   .Respond("application/json",
-                       AlteonResponseFactory.VirtServiceTableResponse(new[]
-                       {
-                           AlteonResponseFactory.VirtServiceEntry("1", "443",
-                               srvCert: "completely-different-cert")
-                       }));
-            handler.When($"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
-                   .Respond("application/json",
-                       AlteonResponseFactory.EmptyCertGroupTableResponse());
-
-            var client = BuildClient(handler);
-            var bindings = await client.GetBindingsForCertificateAsync("target-cert");
-
-            bindings.Should().BeEmpty();
-        }
-
-        // ── BindCertificate (non-SNI) ────────────────────────────────────────
+        // ── BindCertificateAsync ──────────────────────────────────────────────
 
         [Fact]
-        public async Task BindCertificate_NonSni_PutsCorrectPayload()
+        public async Task BindCertificate_WritesToSecondAndFifthPartTables()
         {
-            string? capturedBody = null;
+            string? secondBody = null;
+            string? fifthBody  = null;
+
             var handler = new MockHttpMessageHandler();
-            handler.When(HttpMethod.Put,
-                         $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                   .With(req =>
-                   {
-                       capturedBody = req.Content?.ReadAsStringAsync().Result;
-                       return true;
-                   })
+
+            handler.When(HttpMethod.Put, $"{SecondUrl}/webssl/1")
+                   .With(req => { secondBody = req.Content?.ReadAsStringAsync().Result; return true; })
+                   .Respond("application/json", AlteonResponseFactory.OkResponse());
+
+            handler.When(HttpMethod.Put, $"{FifthUrl}/webssl/1")
+                   .With(req => { fifthBody = req.Content?.ReadAsStringAsync().Result; return true; })
                    .Respond("application/json", AlteonResponseFactory.OkResponse());
 
             var client = BuildClient(handler);
-            var binding = new VirtualServiceBinding("1", "443");
-            await client.BindCertificateDirectAsync(binding, "my-cert", "KF-1-443");
+            var svc = new ResolvedVirtService
+            {
+                ServIndex = "webssl", Index = 1, VirtPort = 443,
+                ServCert = "", SSLpol = "", CertGrpMark = 1
+            };
 
-            capturedBody.Should().NotBeNull();
-            capturedBody.Should().Contain("my-cert");
-            capturedBody.Should().Contain("KF-1-443");
+            await client.BindCertificateAsync(svc, "my-cert", "KF-webssl-443", certGrpMark: 1);
+
+            secondBody.Should().Contain("my-cert");
+            secondBody.Should().Contain("KF-webssl-443");
+            fifthBody.Should().Contain("1"); // ServCertGrpMark = 1
         }
 
         [Fact]
-        public async Task BindCertificate_NonSni_ApiFailure_ThrowsException()
+        public async Task BindCertificate_SecondPartFailure_ThrowsException()
         {
             var handler = new MockHttpMessageHandler();
-            handler.When(HttpMethod.Put,
-                         $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                   .Respond(HttpStatusCode.InternalServerError,
-                       "application/json",
+
+            handler.When(HttpMethod.Put, $"{SecondUrl}/webssl/1")
+                   .Respond(HttpStatusCode.InternalServerError, "application/json",
                        AlteonResponseFactory.ErrorResponse("internal error"));
 
             var client = BuildClient(handler);
-            var binding = new VirtualServiceBinding("1", "443");
+            var svc = new ResolvedVirtService
+            {
+                ServIndex = "webssl", Index = 1, VirtPort = 443,
+                ServCert = "", SSLpol = "", CertGrpMark = 1
+            };
 
-            Func<Task> act = () => client.BindCertificateDirectAsync(binding, "my-cert", "KF-1-443");
+            Func<Task> act = () => client.BindCertificateAsync(svc, "my-cert", "KF-webssl-443");
             await act.Should().ThrowAsync<Exception>();
         }
 
-        // ── SSL Policy management ────────────────────────────────────────────
+        // ── EnsureSslPolicyAsync ──────────────────────────────────────────────
 
         [Fact]
         public async Task EnsureSslPolicy_PolicyDoesNotExist_CreatesIt()
         {
             var handler = new MockHttpMessageHandler();
-            // First call: GET to check existence → 405 (not found on this firmware)
-            handler.When(HttpMethod.Get,
-                         $"{BaseUrl}/config/SlbNewCfgSslPolicyTable/KF-1-443")
+
+            handler.When(HttpMethod.Get, $"{PolicyUrl}/KF-webssl-443")
                    .Respond(HttpStatusCode.MethodNotAllowed, "application/json",
                        AlteonResponseFactory.ErrorResponse("not found"));
-            // Second call: POST to create
-            handler.When(HttpMethod.Post,
-                         $"{BaseUrl}/config/SlbNewCfgSslPolicyTable/KF-1-443")
+
+            handler.When(HttpMethod.Post, $"{PolicyUrl}/KF-webssl-443")
                    .Respond("application/json", AlteonResponseFactory.OkResponse());
 
             var client = BuildClient(handler);
-            await client.EnsureSslPolicyAsync("KF-1-443");
+            await client.EnsureSslPolicyAsync("KF-webssl-443");
 
-            // Assert: both requests were made (existence check + creation)
             handler.VerifyNoOutstandingExpectation();
         }
 
@@ -272,41 +325,34 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
         public async Task EnsureSslPolicy_PolicyExists_DoesNotRecreate()
         {
             var handler = new MockHttpMessageHandler();
-            // GET returns success — policy already exists
-            handler.When(HttpMethod.Get,
-                         $"{BaseUrl}/config/SlbNewCfgSslPolicyTable/KF-1-443")
+
+            handler.When(HttpMethod.Get, $"{PolicyUrl}/KF-webssl-443")
                    .Respond("application/json",
                        AlteonResponseFactory.SslPolicyTableResponse(new[]
                        {
-                           AlteonResponseFactory.SslPolicyEntry("KF-1-443")
+                           AlteonResponseFactory.SslPolicyEntry("KF-webssl-443")
                        }));
-            // POST should NOT be called — if it is, MockHttp will throw
 
+            // No POST should fire — MockHttp would throw on unexpected request
             var client = BuildClient(handler);
-            await client.EnsureSslPolicyAsync("KF-1-443");
-
-            // If POST was called, MockHttp would have thrown UnexpectedRequestException
-            // Reaching here means only GET was called — correct behaviour
+            await client.EnsureSslPolicyAsync("KF-webssl-443");
         }
 
-        // ── Cert group management (SNI) ──────────────────────────────────────
+        // ── Cert group management ─────────────────────────────────────────────
 
         [Fact]
-        public async Task AddCertToExistingGroup_CertNotAlreadyMember_AddsIt()
+        public async Task AddCertToGroup_NotAlreadyMember_AddsIt()
         {
             var handler = new MockHttpMessageHandler();
-            // GET the existing group
-            handler.When(HttpMethod.Get,
-                         $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable/my-group")
+
+            handler.When(HttpMethod.Get, $"{GroupUrl}/my-group")
                    .Respond("application/json",
                        AlteonResponseFactory.CertGroupTableResponse(new[]
                        {
-                           AlteonResponseFactory.CertGroupEntry(
-                               "my-group", "existing-cert", "existing-cert")
+                           AlteonResponseFactory.CertGroupEntry("my-group", "existing-cert", "existing-cert")
                        }));
-            // PUT to add the new cert to the group
-            handler.When(HttpMethod.Put,
-                         $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable/my-group")
+
+            handler.When(HttpMethod.Put, $"{GroupUrl}/my-group")
                    .Respond("application/json", AlteonResponseFactory.OkResponse());
 
             var client = BuildClient(handler);
@@ -316,33 +362,29 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
         }
 
         [Fact]
-        public async Task AddCertToExistingGroup_CertAlreadyMember_IsIdempotent()
+        public async Task AddCertToGroup_AlreadyMember_IsIdempotent()
         {
             var handler = new MockHttpMessageHandler();
-            handler.When(HttpMethod.Get,
-                         $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable/my-group")
+
+            handler.When(HttpMethod.Get, $"{GroupUrl}/my-group")
                    .Respond("application/json",
                        AlteonResponseFactory.CertGroupTableResponse(new[]
                        {
                            AlteonResponseFactory.CertGroupEntry(
                                "my-group", "existing-cert", "existing-cert", "new-cert")
                        }));
-            // No PUT should be issued — cert already in group
 
+            // PUT should NOT fire — cert already a member
             var client = BuildClient(handler);
             await client.AddCertToGroupAsync("my-group", "new-cert");
-
-            // Reaching here without exception = idempotent, no PUT fired
         }
 
-        // ── RemoveCertFromGroup ──────────────────────────────────────────────
-
         [Fact]
-        public async Task RemoveCertFromGroup_IsDefaultCert_ThrowsWithExplanation()
+        public async Task RemoveCertFromGroup_IsDefaultCert_ThrowsInvalidOperation()
         {
             var handler = new MockHttpMessageHandler();
-            handler.When(HttpMethod.Get,
-                         $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable/my-group")
+
+            handler.When(HttpMethod.Get, $"{GroupUrl}/my-group")
                    .Respond("application/json",
                        AlteonResponseFactory.CertGroupTableResponse(new[]
                        {
@@ -358,19 +400,19 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
         }
 
         [Fact]
-        public async Task RemoveCertFromGroup_IsNonDefaultMember_RemovesIt()
+        public async Task RemoveCertFromGroup_NonDefaultMember_RemovesIt()
         {
             var handler = new MockHttpMessageHandler();
-            handler.When(HttpMethod.Get,
-                         $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable/my-group")
+
+            handler.When(HttpMethod.Get, $"{GroupUrl}/my-group")
                    .Respond("application/json",
                        AlteonResponseFactory.CertGroupTableResponse(new[]
                        {
                            AlteonResponseFactory.CertGroupEntry(
                                "my-group", "default-cert", "default-cert", "target-cert")
                        }));
-            handler.When(HttpMethod.Put,
-                         $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable/my-group")
+
+            handler.When(HttpMethod.Put, $"{GroupUrl}/my-group")
                    .Respond("application/json", AlteonResponseFactory.OkResponse());
 
             var client = BuildClient(handler);
@@ -379,17 +421,30 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
             handler.VerifyNoOutstandingExpectation();
         }
 
-        // ── Helper ───────────────────────────────────────────────────────────
+        // ── Helpers ───────────────────────────────────────────────────────────
 
-        private static AlteonLoadBalancerClient BuildClient(MockHttpMessageHandler handler)
+        private static MockHttpMessageHandler SetupThreePartTables(
+            MockHttpMessageHandler handler,
+            IEnumerable<object> mainEntries,
+            IEnumerable<object> secondEntries,
+            IEnumerable<object> fifthEntries)
         {
-            // AlteonLoadBalancerClient needs to accept an optional HttpMessageHandler
-            // for testability.  Add an overload or constructor parameter to the main
-            // project to support this.
-            return new AlteonLoadBalancerClient(
+            handler.When(HttpMethod.Get, MainUrl)
+                   .Respond("application/json",
+                       AlteonResponseFactory.VirtServiceTableResponse(mainEntries));
+            handler.When(HttpMethod.Get, SecondUrl)
+                   .Respond("application/json",
+                       AlteonResponseFactory.VirtServiceSecondPartTableResponse(secondEntries));
+            handler.When(HttpMethod.Get, FifthUrl)
+                   .Respond("application/json",
+                       AlteonResponseFactory.VirtServiceFifthPartTableResponse(fifthEntries));
+            return handler;
+        }
+
+        private static AlteonLoadBalancerClient BuildClient(MockHttpMessageHandler handler) =>
+            new AlteonLoadBalancerClient(
                 BaseUrl, Username, Password,
                 NullLogger.Instance,
                 handler.ToHttpClient());
-        }
     }
 }

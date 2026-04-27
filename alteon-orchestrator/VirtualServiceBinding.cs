@@ -1,4 +1,4 @@
-﻿// Copyright 2026 Keyfactor
+// Copyright 2026 Keyfactor
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,25 +23,21 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
 
     /// <summary>
     /// Represents a single virtual service binding: the combination of a virtual
-    /// server ID and service port to which a certificate is (or should be) bound.
+    /// server name and service port to which a certificate is (or should be) bound.
     ///
-    /// String format: "virtId:servicePort"  e.g. "1:443" or "my-virt:8443"
-    /// List format (entry parameter): comma-separated e.g. "1:443,2:443,my-virt:8443"
+    /// String format: "virtName:servicePort"  e.g. "webssl:443"
+    /// List format (entry parameter): comma-separated e.g. "webssl:443,web:8443"
     /// </summary>
     public record VirtualServiceBinding(string VirtId, string ServicePort)
     {
         public override string ToString() => $"{VirtId}:{ServicePort}";
 
-        /// <summary>
-        /// Parse a single "virtId:servicePort" binding string.
-        /// Trims whitespace from each part.
-        /// </summary>
         public static VirtualServiceBinding Parse(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw))
                 throw new ArgumentException(
                     $"Invalid virtual service binding '{raw}'. " +
-                    "Expected format: 'virtId:servicePort' e.g. '1:443'.");
+                    "Expected format: 'virtName:servicePort' e.g. 'webssl:443'.");
 
             var parts = raw.Trim().Split(':', 2);
 
@@ -50,27 +46,16 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
                 || string.IsNullOrWhiteSpace(parts[1]))
                 throw new ArgumentException(
                     $"Invalid virtual service binding '{raw}'. " +
-                    "Expected format: 'virtId:servicePort' e.g. '1:443'. " +
-                    "Note: virtual server IDs containing ':' or ',' are not supported.");
+                    "Expected format: 'virtName:servicePort' e.g. 'webssl:443'.");
 
-            // Port must be a valid TCP port number (1–65535).
-            // This also catches the case where a ':' in the virtId has caused
-            // the port segment to contain non-numeric characters.
-            if (!int.TryParse(parts[1].Trim(), out var port)
-                || port < 1 || port > 65535)
+            if (!int.TryParse(parts[1].Trim(), out var port) || port < 1 || port > 65535)
                 throw new ArgumentException(
                     $"Invalid virtual service binding '{raw}'. " +
-                    $"Service port must be a number between 1 and 65535 — " +
-                    $"got '{parts[1].Trim()}'. " +
-                    $"Note: virtual server IDs containing ':' or ',' are not supported.");
+                    $"Service port must be a number between 1 and 65535 — got '{parts[1].Trim()}'.");
 
             return new VirtualServiceBinding(parts[0].Trim(), parts[1].Trim());
         }
 
-        /// <summary>
-        /// Parse a comma-separated list of bindings from an entry parameter value.
-        /// Empty entries (e.g. trailing commas) are silently ignored.
-        /// </summary>
         public static List<VirtualServiceBinding> ParseList(string raw)
         {
             if (string.IsNullOrWhiteSpace(raw))
@@ -84,43 +69,150 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
         }
     }
 
-    // ── Virtual service API DTOs ──────────────────────────────────────────────
+    // ── Virtual server DTOs (SlbNewCfgEnhVirtServerTable) ─────────────────────
 
     /// <summary>
-    /// A single row from SlbNewCfgVirtServicesTable.
-    /// SrvCert populated  → non-SNI direct binding.
-    /// CertGroup populated → SNI binding via a certificate group.
-    /// Neither populated  → service has no SSL certificate bound.
+    /// A row from SlbNewCfgEnhVirtServerTable.
+    /// VirtServerIndex is the virtual server name (e.g. "webssl") and is also
+    /// the ServIndex key used in all virtual service part tables.
+    /// </summary>
+    public record VirtServerEntry
+    {
+        [JsonPropertyName("VirtServerIndex")]
+        public string VirtServerIndex { get; init; }
+    }
+
+    public record VirtServerTableResponse
+    {
+        // Alteon appends "E*!" to enhanced table names in GET-all responses.
+        [JsonPropertyName("SlbNewCfgEnhVirtServerTableE*!")]
+        public List<VirtServerEntry> Entries { get; init; } = new();
+    }
+
+    // ── Virtual service DTOs (SlbNewCfgEnhVirtServicesTable) ──────────────────
+
+    /// <summary>
+    /// A row from SlbNewCfgEnhVirtServicesTable.
+    /// Keyed by ServIndex (virtual server name) + Index (service index integer).
+    /// VirtPort is the TCP port — used to find which Index corresponds to port 443.
     /// </summary>
     public record VirtServiceEntry
     {
-        [JsonPropertyName("Index")]
-        public string VirtIndex { get; init; }
-
         [JsonPropertyName("ServIndex")]
-        public string ServicePort { get; init; }
+        public string ServIndex { get; init; }   // virtual server name e.g. "webssl"
 
-        [JsonPropertyName("SrvCert")]
-        public string SrvCert { get; init; }
+        [JsonPropertyName("Index")]
+        public int Index { get; init; }           // numeric service index e.g. 1
 
-        [JsonPropertyName("CertGroup")]
-        public string CertGroup { get; init; }
-
-        [JsonPropertyName("SslPolName")]
-        public string SslPolName { get; init; }
+        [JsonPropertyName("VirtPort")]
+        public int VirtPort { get; init; }        // TCP port e.g. 443
     }
 
     public record VirtServiceTableResponse
     {
-        [JsonPropertyName("SlbNewCfgVirtServicesTable")]
+        [JsonPropertyName("SlbNewCfgEnhVirtServicesTable")]
         public List<VirtServiceEntry> Entries { get; init; } = new();
     }
 
-    // ── Cert group API DTOs ───────────────────────────────────────────────────
+    // ── Virtual service second-part DTOs (SlbNewCfgEnhVirtServicesSecondPartTable)
 
     /// <summary>
-    /// A single row from SlbNewCfgSslCertGroupTable.
-    /// Used for SNI — multiple certificates served on the same VIP:port.
+    /// A row from SlbNewCfgEnhVirtServicesSecondPartTable.
+    /// Same key as VirtServiceEntry (ServIndex + Index).
+    /// Contains ServCert (certificate name) and SSLpol (SSL policy name) —
+    /// the two fields needed for certificate binding.
+    /// </summary>
+    public record VirtServiceSecondPartEntry
+    {
+        [JsonPropertyName("ServSecondPartIndex")]
+        public string ServIndex { get; init; }
+
+        [JsonPropertyName("SecondPartIndex")]
+        public int Index { get; init; }
+
+        [JsonPropertyName("ServCert")]
+        public string ServCert { get; init; }
+
+        [JsonPropertyName("SSLpol")]
+        public string SSLpol { get; init; }
+    }
+
+    public record VirtServiceSecondPartTableResponse
+    {
+        [JsonPropertyName("SlbNewCfgEnhVirtServicesSecondPartTable")]
+        public List<VirtServiceSecondPartEntry> Entries { get; init; } = new();
+    }
+
+    // ── Virtual service fifth-part DTOs (SlbNewCfgEnhVirtServicesFifthPartTable)
+
+    /// <summary>
+    /// A row from SlbNewCfgEnhVirtServicesFifthPartTable.
+    /// Contains ServCertGrpMark which indicates whether ServCert refers to
+    /// a single certificate (1=cert) or a certificate group for SNI (2=group).
+    /// </summary>
+    public record VirtServiceFifthPartEntry
+    {
+        [JsonPropertyName("ServFifthPartIndex")]
+        public string ServIndex { get; init; }
+
+        [JsonPropertyName("FifthPartIndex")]
+        public int Index { get; init; }
+
+        /// <summary>1 = single cert (non-SNI), 2 = cert group (SNI)</summary>
+        [JsonPropertyName("ServCertGrpMark")]
+        public int ServCertGrpMark { get; init; }
+    }
+
+    public record VirtServiceFifthPartTableResponse
+    {
+        [JsonPropertyName("SlbNewCfgEnhVirtServicesFifthPartTable")]
+        public List<VirtServiceFifthPartEntry> Entries { get; init; } = new();
+    }
+
+    // ── Resolved virtual service (assembled from multiple part tables) ─────────
+
+    /// <summary>
+    /// A fully resolved virtual service, combining fields from the main table
+    /// and the second/fifth part tables. Used internally by the client to make
+    /// binding decisions without callers needing to know about the part tables.
+    /// </summary>
+    public record ResolvedVirtService
+    {
+        public string ServIndex { get; init; }   // virtual server name
+        public int    Index     { get; init; }   // numeric service index
+        public int    VirtPort  { get; init; }   // TCP port
+
+        public string ServCert     { get; init; }  // current cert name (or empty)
+        public string SSLpol       { get; init; }  // current SSL policy (or empty)
+        public int    CertGrpMark  { get; init; }  // 1=cert, 2=group
+    }
+
+    // ── SSL policy DTOs (SlbNewSslCfgSSLPolTable) ─────────────────────────────
+
+    /// <summary>
+    /// A row from SlbNewSslCfgSSLPolTable.
+    /// Keyed by NameIdIndex (the policy name string).
+    /// </summary>
+    public record SslPolicyEntry
+    {
+        [JsonPropertyName("NameIdIndex")]
+        public string NameIdIndex { get; init; }
+
+        [JsonPropertyName("Name")]
+        public string Name { get; init; }
+    }
+
+    public record SslPolicyTableResponse
+    {
+        [JsonPropertyName("SlbNewSslCfgSSLPolTable")]
+        public List<SslPolicyEntry> Entries { get; init; } = new();
+    }
+
+    // ── Cert group DTOs (SlbNewSslCfgGroupsTable) ─────────────────────────────
+
+    /// <summary>
+    /// A row from SlbNewSslCfgGroupsTable.
+    /// Used for SNI — multiple certificates served on the same VIP:port via a group.
     /// </summary>
     public record CertGroupEntry
     {
@@ -139,7 +231,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
 
     public record CertGroupTableResponse
     {
-        [JsonPropertyName("SlbNewCfgSslCertGroupTable")]
+        [JsonPropertyName("SlbNewSslCfgGroupsTable")]
         public List<CertGroupEntry> Entries { get; init; } = new();
     }
 }

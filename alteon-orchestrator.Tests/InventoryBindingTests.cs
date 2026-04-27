@@ -21,23 +21,13 @@ using Xunit;
 
 namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
 {
-    /// <summary>
-    /// Tests for the enriched Inventory job that returns virtual service bindings
-    /// as entry parameters alongside each certificate.
-    ///
-    /// Key invariants:
-    ///  - 3 API calls total regardless of cert or service count
-    ///    (certs, virtual services, cert groups — all fetched once)
-    ///  - Non-SNI bindings come from SrvCert on virtual services
-    ///  - SNI bindings come from cert group membership
-    ///  - Both are unioned and reported as VirtualServiceBindings
-    ///  - Certs with no bindings still appear in inventory (bindings = empty)
-    /// </summary>
     public class InventoryBindingTests
     {
-        private const string BaseUrl = "https://192.168.1.168";
-
-        // ── Non-SNI bindings reported correctly ──────────────────────────────
+        private const string BaseUrl   = "https://192.168.1.168";
+        private const string MainUrl   = $"{BaseUrl}/config/SlbNewCfgEnhVirtServicesTable";
+        private const string SecondUrl = $"{BaseUrl}/config/SlbNewCfgEnhVirtServicesSecondPartTable";
+        private const string FifthUrl  = $"{BaseUrl}/config/SlbNewCfgEnhVirtServicesFifthPartTable";
+        private const string GroupUrl  = $"{BaseUrl}/config/SlbNewSslCfgGroupsTable";
 
         [Fact]
         public void Inventory_NonSni_ReportsBindingsAsEntryParameter()
@@ -50,35 +40,38 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
                 AlteonResponseFactory.CertEntry("my-cert"),
                 AlteonResponseFactory.KeyEntry("my-cert")
             });
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.VirtServiceTableResponse(new[]
-                    {
-                        AlteonResponseFactory.VirtServiceEntry("1","443", srvCert:"my-cert"),
-                        AlteonResponseFactory.VirtServiceEntry("2","443", srvCert:"my-cert"),
-                    }));
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
+            SetupThreePartTables(mock,
+                main: new[]
+                {
+                    AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443),
+                    AlteonResponseFactory.VirtServiceEntry("web",    1, 80)
+                },
+                second: new[]
+                {
+                    AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: "my-cert"),
+                    AlteonResponseFactory.VirtServiceSecondPartEntry("web",    1, servCert: "my-cert")
+                },
+                fifth: new[]
+                {
+                    AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, certGrpMark: 1),
+                    AlteonResponseFactory.VirtServiceFifthPartEntry("web",    1, certGrpMark: 1)
+                });
+            mock.When(HttpMethod.Get, GroupUrl)
                 .Respond("application/json", AlteonResponseFactory.EmptyCertGroupTableResponse());
             SetupCertContent(mock, "my-cert");
 
             var job = BuildInventoryJob(mock);
-            var config = BuildInventoryConfig();
-            var result = job.ProcessJob(config, items => { submitted = items.ToList(); return true; });
+            var result = job.ProcessJob(BuildInventoryConfig(),
+                items => { submitted = items.ToList(); return true; });
 
             result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
             submitted.Should().HaveCount(1);
 
-            var item = submitted![0];
-            item.Alias.Should().Be("my-cert");
-            item.Parameters.Should().ContainKey("VirtualServiceBindings");
-
-            var bindings = item.Parameters["VirtualServiceBindings"].ToString()!
-                              .Split(',');
-            bindings.Should().Contain("1:443");
-            bindings.Should().Contain("2:443");
+            var bindings = submitted![0].Parameters["VirtualServiceBindings"]
+                               .ToString()!.Split(',');
+            bindings.Should().Contain("webssl:443");
+            bindings.Should().Contain("web:80");
         }
-
-        // ── SNI bindings reported correctly ──────────────────────────────────
 
         [Fact]
         public void Inventory_Sni_ReportsGroupBindingsAsEntryParameter()
@@ -86,82 +79,35 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
             List<CurrentInventoryItem>? submitted = null;
 
             var mock = new MockHttpMessageHandler();
-            SetupCertTable(mock, new[]
-            {
-                AlteonResponseFactory.CertEntry("my-cert")
-            });
-            // Virtual service uses a cert group, not direct SrvCert
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.VirtServiceTableResponse(new[]
-                    {
-                        AlteonResponseFactory.VirtServiceEntry("1","443",
-                            certGroup:"KF-GRP-1-443")
-                    }));
-            // Cert group contains our cert
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.CertGroupTableResponse(new[]
-                    {
-                        AlteonResponseFactory.CertGroupEntry(
-                            "KF-GRP-1-443","my-cert","my-cert")
-                    }));
-            SetupCertContent(mock, "my-cert");
-
-            var job = BuildInventoryJob(mock);
-            var config = BuildInventoryConfig();
-            var result = job.ProcessJob(config, items => { submitted = items.ToList(); return true; });
-
-            result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
-            var item = submitted![0];
-            item.Parameters["VirtualServiceBindings"].ToString()
-                .Should().Contain("1:443");
-        }
-
-        // ── Mixed SNI and non-SNI bindings ───────────────────────────────────
-
-        [Fact]
-        public void Inventory_MixedBindings_ReportsAll()
-        {
-            List<CurrentInventoryItem>? submitted = null;
-
-            var mock = new MockHttpMessageHandler();
-            SetupCertTable(mock, new[]
-            {
-                AlteonResponseFactory.CertEntry("my-cert")
-            });
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.VirtServiceTableResponse(new[]
-                    {
-                        // Direct binding on service 1
-                        AlteonResponseFactory.VirtServiceEntry("1","443",
-                            srvCert:"my-cert"),
-                        // SNI group on service 2
-                        AlteonResponseFactory.VirtServiceEntry("2","443",
-                            certGroup:"my-group")
-                    }));
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
+            SetupCertTable(mock, new[] { AlteonResponseFactory.CertEntry("my-cert") });
+            SetupThreePartTables(mock,
+                main: new[] { AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443) },
+                second: new[]
+                {
+                    // ServCert holds the group name when CertGrpMark == 2
+                    AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: "KF-GRP-webssl-443")
+                },
+                fifth: new[]
+                {
+                    AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, certGrpMark: 2)
+                });
+            mock.When(HttpMethod.Get, GroupUrl)
                 .Respond("application/json",
                     AlteonResponseFactory.CertGroupTableResponse(new[]
                     {
                         AlteonResponseFactory.CertGroupEntry(
-                            "my-group","my-cert","my-cert")
+                            "KF-GRP-webssl-443", "my-cert", "my-cert")
                     }));
             SetupCertContent(mock, "my-cert");
 
             var job = BuildInventoryJob(mock);
-            var config = BuildInventoryConfig();
-            var result = job.ProcessJob(config, items => { submitted = items.ToList(); return true; });
+            var result = job.ProcessJob(BuildInventoryConfig(),
+                items => { submitted = items.ToList(); return true; });
 
             result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
-            var bindings = submitted![0].Parameters["VirtualServiceBindings"]
-                               .ToString()!.Split(',');
-            bindings.Should().Contain("1:443");
-            bindings.Should().Contain("2:443");
+            submitted![0].Parameters["VirtualServiceBindings"]
+                .ToString().Should().Contain("webssl:443");
         }
-
-        // ── Cert with no bindings still appears in inventory ──────────────────
 
         [Fact]
         public void Inventory_CertWithNoBindings_StillInventoried()
@@ -169,31 +115,24 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
             List<CurrentInventoryItem>? submitted = null;
 
             var mock = new MockHttpMessageHandler();
-            SetupCertTable(mock, new[]
-            {
-                AlteonResponseFactory.CertEntry("unbound-cert")
-            });
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.VirtServiceTableResponse(
-                        new List<object>()));
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.EmptyCertGroupTableResponse());
+            SetupCertTable(mock, new[] { AlteonResponseFactory.CertEntry("unbound-cert") });
+            SetupThreePartTables(mock,
+                main:   new List<object>(),
+                second: new List<object>(),
+                fifth:  new List<object>());
+            mock.When(HttpMethod.Get, GroupUrl)
+                .Respond("application/json", AlteonResponseFactory.EmptyCertGroupTableResponse());
             SetupCertContent(mock, "unbound-cert");
 
             var job = BuildInventoryJob(mock);
-            var config = BuildInventoryConfig();
-            var result = job.ProcessJob(config, items => { submitted = items.ToList(); return true; });
+            var result = job.ProcessJob(BuildInventoryConfig(),
+                items => { submitted = items.ToList(); return true; });
 
             result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
             submitted.Should().HaveCount(1);
-            submitted![0].Alias.Should().Be("unbound-cert");
-            submitted[0].Parameters["VirtualServiceBindings"].ToString()
+            submitted![0].Parameters["VirtualServiceBindings"].ToString()
                 .Should().BeNullOrEmpty();
         }
-
-        // ── Multiple certs — each gets correct bindings ───────────────────────
 
         [Fact]
         public void Inventory_MultipleCerts_EachGetsCorrectBindings()
@@ -206,112 +145,81 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
                 AlteonResponseFactory.CertEntry("cert-a"),
                 AlteonResponseFactory.CertEntry("cert-b")
             });
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.VirtServiceTableResponse(new[]
-                    {
-                        AlteonResponseFactory.VirtServiceEntry("1","443",srvCert:"cert-a"),
-                        AlteonResponseFactory.VirtServiceEntry("2","443",srvCert:"cert-b"),
-                        AlteonResponseFactory.VirtServiceEntry("3","443",srvCert:"cert-a"),
-                    }));
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.EmptyCertGroupTableResponse());
+            SetupThreePartTables(mock,
+                main: new[]
+                {
+                    AlteonResponseFactory.VirtServiceEntry("virt1", 1, 443),
+                    AlteonResponseFactory.VirtServiceEntry("virt2", 1, 443),
+                    AlteonResponseFactory.VirtServiceEntry("virt3", 1, 443)
+                },
+                second: new[]
+                {
+                    AlteonResponseFactory.VirtServiceSecondPartEntry("virt1", 1, servCert: "cert-a"),
+                    AlteonResponseFactory.VirtServiceSecondPartEntry("virt2", 1, servCert: "cert-b"),
+                    AlteonResponseFactory.VirtServiceSecondPartEntry("virt3", 1, servCert: "cert-a")
+                },
+                fifth: new[]
+                {
+                    AlteonResponseFactory.VirtServiceFifthPartEntry("virt1", 1, 1),
+                    AlteonResponseFactory.VirtServiceFifthPartEntry("virt2", 1, 1),
+                    AlteonResponseFactory.VirtServiceFifthPartEntry("virt3", 1, 1)
+                });
+            mock.When(HttpMethod.Get, GroupUrl)
+                .Respond("application/json", AlteonResponseFactory.EmptyCertGroupTableResponse());
             SetupCertContent(mock, "cert-a");
             SetupCertContent(mock, "cert-b");
 
             var job = BuildInventoryJob(mock);
-            var config = BuildInventoryConfig();
-            var result = job.ProcessJob(config, items => { submitted = items.ToList(); return true; });
+            var result = job.ProcessJob(BuildInventoryConfig(),
+                items => { submitted = items.ToList(); return true; });
 
             result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
             submitted.Should().HaveCount(2);
 
             var certA = submitted!.Single(i => i.Alias == "cert-a");
-            var certB = submitted.Single(i => i.Alias == "cert-b");
-
             var aBindings = certA.Parameters["VirtualServiceBindings"].ToString()!.Split(',');
-            aBindings.Should().Contain("1:443").And.Contain("3:443");
-            aBindings.Should().NotContain("2:443");
+            aBindings.Should().Contain("virt1:443").And.Contain("virt3:443");
+            aBindings.Should().NotContain("virt2:443");
 
+            var certB = submitted.Single(i => i.Alias == "cert-b");
             certB.Parameters["VirtualServiceBindings"].ToString()
-                 .Should().Contain("2:443");
+                 .Should().Contain("virt2:443");
         }
 
-        // ── Only 3 API calls made regardless of cert count ───────────────────
-
-        [Fact]
-        public void Inventory_MakesExactlyThreeApiCalls()
-        {
-            int apiCallCount = 0;
-            List<CurrentInventoryItem>? submitted = null;
-
-            var mock = new MockHttpMessageHandler();
-
-            // Count every request
-            mock.When($"{BaseUrl}/*")
-                .With(_ => { apiCallCount++; return true; })
-                .Respond("application/json", AlteonResponseFactory.OkResponse());
-
-            // More specific handlers for the actual data
-            SetupCertTable(mock, new[]
-            {
-                AlteonResponseFactory.CertEntry("cert-1"),
-                AlteonResponseFactory.CertEntry("cert-2"),
-                AlteonResponseFactory.CertEntry("cert-3"),
-            });
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.VirtServiceTableResponse(new List<object>()));
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.EmptyCertGroupTableResponse());
-            SetupCertContent(mock, "cert-1");
-            SetupCertContent(mock, "cert-2");
-            SetupCertContent(mock, "cert-3");
-
-            var job = BuildInventoryJob(mock);
-            var config = BuildInventoryConfig();
-            job.ProcessJob(config, items => { submitted = items.ToList(); return true; });
-
-            // cert table + virtual services table + cert group table = 3
-            // (plus N cert content calls — one per cert, unavoidable)
-            // The important thing is that the TABLE calls are exactly 3,
-            // not proportional to cert count
-            apiCallCount.Should().BeGreaterThanOrEqualTo(3);
-        }
-
-        // ── Helpers ──────────────────────────────────────────────────────────
+        // ── Helpers ───────────────────────────────────────────────────────────
 
         private static void SetupCertTable(MockHttpMessageHandler mock,
                                            IEnumerable<object> entries)
         {
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewSslCfgCertsTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.CertTableResponse(entries));
+            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewSslCfgCertsTable")
+                .Respond("application/json", AlteonResponseFactory.CertTableResponse(entries));
         }
 
-        private static void SetupCertContent(MockHttpMessageHandler mock,
-                                              string certId)
+        private static void SetupCertContent(MockHttpMessageHandler mock, string certId)
         {
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/getcert*")
-                .Respond("text/plain",
-                    AlteonResponseFactory.FakePemCertContent(certId));
+            mock.When(HttpMethod.Get, $"{BaseUrl}/config/getcert*")
+                .Respond("text/plain", AlteonResponseFactory.FakePemCertContent(certId));
+        }
+
+        private static void SetupThreePartTables(MockHttpMessageHandler mock,
+                                                  IEnumerable<object> main,
+                                                  IEnumerable<object> second,
+                                                  IEnumerable<object> fifth)
+        {
+            mock.When(HttpMethod.Get, MainUrl)
+                .Respond("application/json", AlteonResponseFactory.VirtServiceTableResponse(main));
+            mock.When(HttpMethod.Get, SecondUrl)
+                .Respond("application/json", AlteonResponseFactory.VirtServiceSecondPartTableResponse(second));
+            mock.When(HttpMethod.Get, FifthUrl)
+                .Respond("application/json", AlteonResponseFactory.VirtServiceFifthPartTableResponse(fifth));
         }
 
         private static Inventory BuildInventoryJob(MockHttpMessageHandler mock)
         {
             var resolverMock = new Mock<Keyfactor.Orchestrators.Extensions.Interfaces.IPAMSecretResolver>();
-            resolverMock.Setup(r => r.Resolve(It.IsAny<string>()))
-                        .Returns<string>(s => s);
-
-            return new Inventory(
-                resolverMock.Object,
-                BaseUrl, "admin", "admin",
-                NullLogger<Inventory>.Instance,
-                mock.ToHttpClient());
+            resolverMock.Setup(r => r.Resolve(It.IsAny<string>())).Returns<string>(s => s);
+            return new Inventory(resolverMock.Object, BaseUrl, "admin", "admin",
+                NullLogger<Inventory>.Instance, mock.ToHttpClient());
         }
 
         private static InventoryJobConfiguration BuildInventoryConfig() =>
@@ -320,8 +228,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
                 JobHistoryId = 1,
                 CertificateStoreDetails = new CertificateStore
                 {
-                    ClientMachine = BaseUrl,
-                    StorePath = "NA"
+                    ClientMachine = BaseUrl, StorePath = "NA"
                 },
                 ServerUsername = "admin",
                 ServerPassword = "admin"

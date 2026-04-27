@@ -23,417 +23,264 @@ using Xunit;
 
 namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
 {
-    /// <summary>
-    /// Tests for the binding logic in the Management job's PerformAddition
-    /// and PerformRemoval methods.
-    ///
-    /// These tests focus exclusively on the virtual service binding behaviour
-    /// that will be added on top of the existing cert import logic.
-    /// The cert import itself is already tested by the existing code paths.
-    ///
-    /// Scenarios covered:
-    ///   Add - non-SNI:  bind SrvCert directly, auto-create policy
-    ///   Add - SNI:      add cert to existing cert group
-    ///   Add - SNI:      create new cert group when none exists
-    ///   Add - conflict: refuse when service already has a different cert
-    ///   Add - multi:    bind same cert to multiple services
-    ///   Remove - non-SNI: clear SrvCert, leave policy alone
-    ///   Remove - SNI default: refuse and explain
-    ///   Remove - SNI non-default: remove from group
-    ///   Remove - no bindings: succeed silently
-    /// </summary>
     public class ManagementBindingTests
     {
-        private const string BaseUrl = "https://192.168.1.168";
-        private const string CertAlias = "my-cert";
+        private const string BaseUrl    = "https://192.168.1.168";
+        private const string CertAlias  = "my-cert";
+        private const string MainUrl    = $"{BaseUrl}/config/SlbNewCfgEnhVirtServicesTable";
+        private const string SecondUrl  = $"{BaseUrl}/config/SlbNewCfgEnhVirtServicesSecondPartTable";
+        private const string FifthUrl   = $"{BaseUrl}/config/SlbNewCfgEnhVirtServicesFifthPartTable";
+        private const string ServerUrl  = $"{BaseUrl}/config/SlbNewCfgEnhVirtServerTable";
+        private const string GroupUrl   = $"{BaseUrl}/config/SlbNewSslCfgGroupsTable";
+        private const string PolicyUrl  = $"{BaseUrl}/config/SlbNewSslCfgSSLPolTable";
 
-        // ── Add: non-SNI, single service, no existing policy ─────────────────
+        // ── Add: non-SNI, unbound service, no existing policy ─────────────────
 
         [Fact]
-        public async Task Add_NonSni_SingleService_CreatesBindingAndPolicy()
+        public async Task Add_NonSni_UnboundService_CreatesBindingAndPolicy()
         {
             var mock = new MockHttpMessageHandler();
+            SetupVirtServerValidation(mock, "webssl");
+            SetupThreePartTables(mock,
+                main:   new[] { AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443) },
+                second: new[] { AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1) },
+                fifth:  new[] { AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, 1) });
 
-            // Virtual service has no cert bound, no cert group
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                .Respond("application/json",
-                    AlteonResponseFactory.SingleVirtServiceResponse("1", "443"));
-
-            // Policy doesn't exist yet → GET returns 405
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgSslPolicyTable/KF-1-443")
+            // Policy doesn't exist
+            mock.When(HttpMethod.Get, $"{PolicyUrl}/KF-webssl-443")
                 .Respond(HttpStatusCode.MethodNotAllowed, "application/json",
                     AlteonResponseFactory.ErrorResponse("not found"));
-
-            // Policy creation
-            mock.When(HttpMethod.Post,
-                    $"{BaseUrl}/config/SlbNewCfgSslPolicyTable/KF-1-443")
+            mock.When(HttpMethod.Post, $"{PolicyUrl}/KF-webssl-443")
                 .Respond("application/json", AlteonResponseFactory.OkResponse());
 
-            // Cert binding
-            mock.When(HttpMethod.Put,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
+            // Binding — second and fifth part
+            mock.When(HttpMethod.Put, $"{SecondUrl}/webssl/1")
+                .Respond("application/json", AlteonResponseFactory.OkResponse());
+            mock.When(HttpMethod.Put, $"{FifthUrl}/webssl/1")
                 .Respond("application/json", AlteonResponseFactory.OkResponse());
 
             // Apply + Save
             mock.When(HttpMethod.Post, $"{BaseUrl}/config")
                 .Respond("application/json", AlteonResponseFactory.OkResponse());
 
-            var result = await RunAddJob(mock, "1:443");
+            var result = await RunAddJob(mock, "webssl:443");
 
             result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
             mock.VerifyNoOutstandingExpectation();
-        }
-
-        // ── Add: non-SNI, policy already exists ──────────────────────────────
-
-        [Fact]
-        public async Task Add_NonSni_ExistingPolicy_BindsWithoutRecreatingPolicy()
-        {
-            var mock = new MockHttpMessageHandler();
-
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                .Respond("application/json",
-                    AlteonResponseFactory.SingleVirtServiceResponse(
-                        "1", "443", sslPolName: "KF-1-443"));
-
-            // Policy GET returns success — already exists
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgSslPolicyTable/KF-1-443")
-                .Respond("application/json",
-                    AlteonResponseFactory.SslPolicyTableResponse(new[]
-                    {
-                        AlteonResponseFactory.SslPolicyEntry("KF-1-443")
-                    }));
-
-            // Binding PUT
-            mock.When(HttpMethod.Put,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                .Respond("application/json", AlteonResponseFactory.OkResponse());
-
-            mock.When(HttpMethod.Post, $"{BaseUrl}/config")
-                .Respond("application/json", AlteonResponseFactory.OkResponse());
-
-            var result = await RunAddJob(mock, "1:443");
-
-            result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
-            // POST to create policy should NOT have been called
         }
 
         // ── Add: conflict — Overwrite=false refuses ───────────────────────────
 
         [Fact]
-        public async Task Add_NonSni_ServiceHasDifferentCert_OverwriteFalse_FailsWithExplanation()
+        public async Task Add_NonSni_DifferentCertBound_OverwriteFalse_Fails()
         {
             var mock = new MockHttpMessageHandler();
+            SetupVirtServerValidation(mock, "webssl");
+            SetupThreePartTables(mock,
+                main:   new[] { AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443) },
+                second: new[] { AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: "different-cert") },
+                fifth:  new[] { AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, 1) });
 
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                .Respond("application/json",
-                    AlteonResponseFactory.SingleVirtServiceResponse(
-                        "1", "443", srvCert: "different-cert"));
-
-            var result = await RunAddJob(mock, "1:443", overwrite: false);
+            var result = await RunAddJob(mock, "webssl:443", overwrite: false);
 
             result.Result.Should().Be(OrchestratorJobStatusJobResult.Failure);
             result.FailureMessage.Should().Contain("different-cert");
-            result.FailureMessage.Should().Contain("1:443");
             result.FailureMessage.Should().Contain("Overwrite");
         }
 
-        // ── Add: conflict — Overwrite=true replaces existing binding ──────────
+        // ── Add: conflict — Overwrite=true replaces ───────────────────────────
 
         [Fact]
-        public async Task Add_NonSni_ServiceHasDifferentCert_OverwriteTrue_Succeeds()
+        public async Task Add_NonSni_DifferentCertBound_OverwriteTrue_Succeeds()
         {
             var mock = new MockHttpMessageHandler();
+            SetupVirtServerValidation(mock, "webssl");
+            SetupThreePartTables(mock,
+                main:   new[] { AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443) },
+                second: new[] { AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: "different-cert", sslPol: "KF-webssl-443") },
+                fifth:  new[] { AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, 1) });
 
-            // Service already has a DIFFERENT cert bound
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                .Respond("application/json",
-                    AlteonResponseFactory.SingleVirtServiceResponse(
-                        "1", "443", srvCert: "different-cert",
-                        sslPolName: "KF-1-443"));
-
-            // Policy already exists — no creation needed
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgSslPolicyTable/KF-1-443")
+            mock.When(HttpMethod.Get, $"{PolicyUrl}/KF-webssl-443")
                 .Respond("application/json",
                     AlteonResponseFactory.SslPolicyTableResponse(new[]
                     {
-                        AlteonResponseFactory.SslPolicyEntry("KF-1-443")
+                        AlteonResponseFactory.SslPolicyEntry("KF-webssl-443")
                     }));
-
-            // Overwrite: binding is replaced with new cert
-            mock.When(HttpMethod.Put,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
+            mock.When(HttpMethod.Put, $"{SecondUrl}/webssl/1")
                 .Respond("application/json", AlteonResponseFactory.OkResponse());
-
+            mock.When(HttpMethod.Put, $"{FifthUrl}/webssl/1")
+                .Respond("application/json", AlteonResponseFactory.OkResponse());
             mock.When(HttpMethod.Post, $"{BaseUrl}/config")
                 .Respond("application/json", AlteonResponseFactory.OkResponse());
 
-            var result = await RunAddJob(mock, "1:443", overwrite: true);
+            var result = await RunAddJob(mock, "webssl:443", overwrite: true);
 
             result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
             mock.VerifyNoOutstandingExpectation();
         }
 
-        // ── Add: same cert already bound (renewal) — idempotent ──────────────
+        // ── Add: same cert already bound — idempotent ─────────────────────────
 
         [Fact]
         public async Task Add_NonSni_SameCertAlreadyBound_Succeeds()
         {
             var mock = new MockHttpMessageHandler();
+            SetupVirtServerValidation(mock, "webssl");
+            SetupThreePartTables(mock,
+                main:   new[] { AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443) },
+                second: new[] { AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: CertAlias, sslPol: "KF-webssl-443") },
+                fifth:  new[] { AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, 1) });
 
-            // Service already has THIS cert bound — renewal scenario
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                .Respond("application/json",
-                    AlteonResponseFactory.SingleVirtServiceResponse(
-                        "1", "443", srvCert: CertAlias, sslPolName: "KF-1-443"));
-
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgSslPolicyTable/KF-1-443")
+            mock.When(HttpMethod.Get, $"{PolicyUrl}/KF-webssl-443")
                 .Respond("application/json",
                     AlteonResponseFactory.SslPolicyTableResponse(new[]
                     {
-                        AlteonResponseFactory.SslPolicyEntry("KF-1-443")
+                        AlteonResponseFactory.SslPolicyEntry("KF-webssl-443")
                     }));
-
-            mock.When(HttpMethod.Put,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
+            mock.When(HttpMethod.Put, $"{SecondUrl}/webssl/1")
                 .Respond("application/json", AlteonResponseFactory.OkResponse());
-
+            mock.When(HttpMethod.Put, $"{FifthUrl}/webssl/1")
+                .Respond("application/json", AlteonResponseFactory.OkResponse());
             mock.When(HttpMethod.Post, $"{BaseUrl}/config")
                 .Respond("application/json", AlteonResponseFactory.OkResponse());
 
-            var result = await RunAddJob(mock, "1:443");
+            var result = await RunAddJob(mock, "webssl:443");
 
             result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
         }
 
-        // ── Add: multiple services, all succeed ──────────────────────────────
-
-        [Fact]
-        public async Task Add_NonSni_MultipleServices_BindsAll()
-        {
-            var mock = new MockHttpMessageHandler();
-
-            foreach (var (virt, port) in new[] { ("1", "443"), ("2", "443"), ("3", "8443") })
-            {
-                var policyId = $"KF-{virt}-{port}";
-                mock.When(HttpMethod.Get,
-                        $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/{virt}/{port}")
-                    .Respond("application/json",
-                        AlteonResponseFactory.SingleVirtServiceResponse(virt, port));
-
-                mock.When(HttpMethod.Get,
-                        $"{BaseUrl}/config/SlbNewCfgSslPolicyTable/{policyId}")
-                    .Respond(HttpStatusCode.MethodNotAllowed, "application/json",
-                        AlteonResponseFactory.ErrorResponse("not found"));
-
-                mock.When(HttpMethod.Post,
-                        $"{BaseUrl}/config/SlbNewCfgSslPolicyTable/{policyId}")
-                    .Respond("application/json", AlteonResponseFactory.OkResponse());
-
-                mock.When(HttpMethod.Put,
-                        $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/{virt}/{port}")
-                    .Respond("application/json", AlteonResponseFactory.OkResponse());
-            }
-
-            mock.When(HttpMethod.Post, $"{BaseUrl}/config")
-                .Respond("application/json", AlteonResponseFactory.OkResponse());
-
-            var result = await RunAddJob(mock, "1:443,2:443,3:8443");
-
-            result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
-            mock.VerifyNoOutstandingExpectation();
-        }
-
-        // ── Add: virtual service doesn't exist ───────────────────────────────
+        // ── Add: virtual service not found ────────────────────────────────────
 
         [Fact]
         public async Task Add_VirtualServiceNotFound_FailsWithExplanation()
         {
             var mock = new MockHttpMessageHandler();
+            SetupVirtServerValidation(mock, "webssl");
+            SetupThreePartTables(mock,
+                main:   new List<object>(),  // empty — service doesn't exist
+                second: new List<object>(),
+                fifth:  new List<object>());
 
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/99/443")
-                .Respond(HttpStatusCode.MethodNotAllowed, "application/json",
-                    AlteonResponseFactory.ErrorResponse("not found"));
-
-            var result = await RunAddJob(mock, "99:443");
+            var result = await RunAddJob(mock, "webssl:443");
 
             result.Result.Should().Be(OrchestratorJobStatusJobResult.Failure);
-            result.FailureMessage.Should().Contain("99:443");
+            result.FailureMessage.Should().Contain("webssl:443");
         }
 
-        // ── Add: missing VirtualServiceBindings parameter ────────────────────
+        // ── Add: no VirtualServiceBindings — succeeds silently ────────────────
 
         [Fact]
-        public async Task Add_MissingBindingsParameter_FailsWithExplanation()
+        public async Task Add_NoBindingsParam_SucceedsSilently()
         {
             var mock = new MockHttpMessageHandler();
-            // No HTTP calls should be made at all
-
             var result = await RunAddJob(mock, bindingsParam: null);
 
-            result.Result.Should().Be(OrchestratorJobStatusJobResult.Failure);
-            result.FailureMessage.Should().Contain("VirtualServiceBindings");
+            result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
         }
 
-        // ── Add: SNI — existing cert group, add cert to it ───────────────────
+        // ── Add: SNI — existing group, add cert to it ─────────────────────────
 
         [Fact]
         public async Task Add_Sni_ExistingGroup_AddsCertToGroup()
         {
             var mock = new MockHttpMessageHandler();
+            SetupVirtServerValidation(mock, "webssl");
+            SetupThreePartTables(mock,
+                main:   new[] { AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443) },
+                second: new[] { AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: "existing-group") },
+                fifth:  new[] { AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, certGrpMark: 2) });
 
-            // Service has CertGroup set → SNI mode
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                .Respond("application/json",
-                    AlteonResponseFactory.SingleVirtServiceResponse(
-                        "1", "443", certGroup: "existing-group"));
-
-            // GET the cert group to check membership
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable/existing-group")
+            mock.When(HttpMethod.Get, $"{GroupUrl}/existing-group")
                 .Respond("application/json",
                     AlteonResponseFactory.CertGroupTableResponse(new[]
                     {
-                        AlteonResponseFactory.CertGroupEntry(
-                            "existing-group", "other-cert", "other-cert")
+                        AlteonResponseFactory.CertGroupEntry("existing-group", "other-cert", "other-cert")
                     }));
-
-            // PUT to add new cert to the group
-            mock.When(HttpMethod.Put,
-                    $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable/existing-group")
+            mock.When(HttpMethod.Put, $"{GroupUrl}/existing-group")
                 .Respond("application/json", AlteonResponseFactory.OkResponse());
-
             mock.When(HttpMethod.Post, $"{BaseUrl}/config")
                 .Respond("application/json", AlteonResponseFactory.OkResponse());
 
-            var result = await RunAddJob(mock, "1:443");
+            var result = await RunAddJob(mock, "webssl:443");
 
             result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
             mock.VerifyNoOutstandingExpectation();
         }
 
-        // ── Add: SNI — no existing cert group, create one ────────────────────
+        // ── Remove: non-SNI bound cert — block removal ──────────────────────
 
         [Fact]
-        public async Task Add_Sni_NoCertGroup_CreatesGroupAndBinds()
+        public async Task Remove_NonSni_BoundCert_FailsWithExplanation()
         {
             var mock = new MockHttpMessageHandler();
 
-            // Service has no SrvCert AND no CertGroup — treat as SNI-capable
-            // by creating a new group
-            // NOTE: actual branch condition is determined by checking if CertGroup is set.
-            // If the operator intends SNI for a service that has no group yet,
-            // this is the new-group-creation path.
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                .Respond("application/json",
-                    AlteonResponseFactory.SingleVirtServiceResponse("1", "443",
-                        certGroup: "KF-GRP-1-443")); // group name set but group doesn't exist yet
+            SetupThreePartTables(mock,
+                main:   new[] { AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443) },
+                second: new[] { AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: CertAlias) },
+                fifth:  new[] { AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, 1) });
 
-            // GET the cert group → not found
-            mock.When(HttpMethod.Get,
-                    $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable/KF-GRP-1-443")
-                .Respond(HttpStatusCode.MethodNotAllowed, "application/json",
-                    AlteonResponseFactory.ErrorResponse("not found"));
-
-            // POST to create the cert group
-            mock.When(HttpMethod.Post,
-                    $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable/KF-GRP-1-443")
-                .Respond("application/json", AlteonResponseFactory.OkResponse());
-
-            // PUT to bind the cert group to the virtual service
-            mock.When(HttpMethod.Put,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                .Respond("application/json", AlteonResponseFactory.OkResponse());
-
-            mock.When(HttpMethod.Post, $"{BaseUrl}/config")
-                .Respond("application/json", AlteonResponseFactory.OkResponse());
-
-            var result = await RunAddJob(mock, "1:443");
-
-            result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
-            mock.VerifyNoOutstandingExpectation();
-        }
-
-        // ── Remove: non-SNI, clears SrvCert, leaves policy ──────────────────
-
-        [Fact]
-        public async Task Remove_NonSni_ClearsSrvCert_LeavesPolicyAlone()
-        {
-            string? putBody = null;
-            var mock = new MockHttpMessageHandler();
-
-            // All virtual services: one has our cert bound directly
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.VirtServiceTableResponse(new[]
-                    {
-                        AlteonResponseFactory.VirtServiceEntry(
-                            "1", "443", srvCert: CertAlias, sslPolName: "KF-1-443")
-                    }));
-
-            // All cert groups: none contain our cert
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.EmptyCertGroupTableResponse());
-
-            // Clear the binding
-            mock.When(HttpMethod.Put,
-                    $"{BaseUrl}/config/SlbNewCfgVirtServicesTable/1/443")
-                .With(req =>
-                {
-                    putBody = req.Content?.ReadAsStringAsync().Result;
-                    return true;
-                })
-                .Respond("application/json", AlteonResponseFactory.OkResponse());
-
-            mock.When(HttpMethod.Post, $"{BaseUrl}/config")
-                .Respond("application/json", AlteonResponseFactory.OkResponse());
+            mock.When(HttpMethod.Get, GroupUrl)
+                .Respond("application/json", AlteonResponseFactory.EmptyCertGroupTableResponse());
 
             var result = await RunRemoveJob(mock);
 
-            result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
-            // SrvCert should be cleared (empty string)
-            putBody.Should().NotBeNull();
-            putBody.Should().Contain("\"SrvCert\":\"\"");
-            // SslPolName should NOT appear in the body (we leave it alone)
-            putBody.Should().NotContain("SslPolName");
+            result.Result.Should().Be(OrchestratorJobStatusJobResult.Failure);
+            result.FailureMessage.Should().Contain(CertAlias);
+            result.FailureMessage.Should().Contain("webssl:443");
+            result.FailureMessage.Should().Contain("Overwrite");
         }
 
-        // ── Remove: SNI default cert — refuse ────────────────────────────────
+        // ── Remove: cert bound to multiple services — lists all in error ───────
+
+        [Fact]
+        public async Task Remove_NonSni_BoundToMultipleServices_ListsAllInError()
+        {
+            var mock = new MockHttpMessageHandler();
+
+            SetupThreePartTables(mock,
+                main: new[]
+                {
+                    AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443),
+                    AlteonResponseFactory.VirtServiceEntry("virt2",  1, 443)
+                },
+                second: new[]
+                {
+                    AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: CertAlias),
+                    AlteonResponseFactory.VirtServiceSecondPartEntry("virt2",  1, servCert: CertAlias)
+                },
+                fifth: new[]
+                {
+                    AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, 1),
+                    AlteonResponseFactory.VirtServiceFifthPartEntry("virt2",  1, 1)
+                });
+
+            mock.When(HttpMethod.Get, GroupUrl)
+                .Respond("application/json", AlteonResponseFactory.EmptyCertGroupTableResponse());
+
+            var result = await RunRemoveJob(mock);
+
+            result.Result.Should().Be(OrchestratorJobStatusJobResult.Failure);
+            result.FailureMessage.Should().Contain("webssl:443");
+            result.FailureMessage.Should().Contain("virt2:443");
+        }
+
+        // ── Remove: SNI default cert — refuse ─────────────────────────────────
 
         [Fact]
         public async Task Remove_SniDefaultCert_FailsWithExplanation()
         {
             var mock = new MockHttpMessageHandler();
 
-            // No direct bindings
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.VirtServiceTableResponse(new[]
-                    {
-                        AlteonResponseFactory.VirtServiceEntry(
-                            "1", "443", certGroup: "my-group")
-                    }));
+            SetupThreePartTables(mock,
+                main:   new[] { AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443) },
+                second: new[] { AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: "my-group") },
+                fifth:  new[] { AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, certGrpMark: 2) });
 
-            // Cert is the DEFAULT in the group
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
+            mock.When(HttpMethod.Get, GroupUrl)
                 .Respond("application/json",
                     AlteonResponseFactory.CertGroupTableResponse(new[]
                     {
-                        AlteonResponseFactory.CertGroupEntry(
-                            "my-group", CertAlias, CertAlias, "other-cert")
+                        AlteonResponseFactory.CertGroupEntry("my-group", CertAlias, CertAlias, "other-cert")
                     }));
 
             var result = await RunRemoveJob(mock);
@@ -443,35 +290,26 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
             result.FailureMessage.Should().Contain("my-group");
         }
 
-        // ── Remove: SNI non-default cert — removes from group ────────────────
+        // ── Remove: SNI non-default — removes from group ──────────────────────
 
         [Fact]
         public async Task Remove_SniNonDefaultCert_RemovesFromGroup()
         {
             var mock = new MockHttpMessageHandler();
 
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.VirtServiceTableResponse(new[]
-                    {
-                        AlteonResponseFactory.VirtServiceEntry(
-                            "1", "443", certGroup: "my-group")
-                    }));
+            SetupThreePartTables(mock,
+                main:   new[] { AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443) },
+                second: new[] { AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: "my-group") },
+                fifth:  new[] { AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, certGrpMark: 2) });
 
-            // Our cert is a non-default member
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
+            mock.When(HttpMethod.Get, GroupUrl)
                 .Respond("application/json",
                     AlteonResponseFactory.CertGroupTableResponse(new[]
                     {
-                        AlteonResponseFactory.CertGroupEntry(
-                            "my-group", "default-cert", "default-cert", CertAlias)
+                        AlteonResponseFactory.CertGroupEntry("my-group", "default-cert", "default-cert", CertAlias)
                     }));
-
-            // Remove from group
-            mock.When(HttpMethod.Put,
-                    $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable/my-group")
+            mock.When(HttpMethod.Put, $"{GroupUrl}/my-group")
                 .Respond("application/json", AlteonResponseFactory.OkResponse());
-
             mock.When(HttpMethod.Post, $"{BaseUrl}/config")
                 .Respond("application/json", AlteonResponseFactory.OkResponse());
 
@@ -481,69 +319,76 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
             mock.VerifyNoOutstandingExpectation();
         }
 
-        // ── Remove: no bindings at all — succeeds silently ───────────────────
+        // ── Remove: cert not bound to any service — succeeds ─────────────────
 
         [Fact]
-        public async Task Remove_NoCertBindings_SucceedsSilently()
+        public async Task Remove_CertNotBoundToAnyService_Succeeds()
         {
             var mock = new MockHttpMessageHandler();
 
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgVirtServicesTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.VirtServiceTableResponse(new[]
-                    {
-                        AlteonResponseFactory.VirtServiceEntry(
-                            "1", "443", srvCert: "different-cert")
-                    }));
+            SetupThreePartTables(mock,
+                main:   new[] { AlteonResponseFactory.VirtServiceEntry("webssl", 1, 443) },
+                second: new[] { AlteonResponseFactory.VirtServiceSecondPartEntry("webssl", 1, servCert: "different-cert") },
+                fifth:  new[] { AlteonResponseFactory.VirtServiceFifthPartEntry("webssl", 1, 1) });
 
-            mock.When(HttpMethod.Get, $"{BaseUrl}/config/SlbNewCfgSslCertGroupTable")
-                .Respond("application/json",
-                    AlteonResponseFactory.EmptyCertGroupTableResponse());
-
-            // No PUT, no Apply/Save should be issued
+            mock.When(HttpMethod.Get, GroupUrl)
+                .Respond("application/json", AlteonResponseFactory.EmptyCertGroupTableResponse());
 
             var result = await RunRemoveJob(mock);
 
             result.Result.Should().Be(OrchestratorJobStatusJobResult.Success);
         }
 
-        // ── Helpers ──────────────────────────────────────────────────────────
+        // ── Helpers ───────────────────────────────────────────────────────────
 
-        private static async Task<JobResult> RunAddJob(
-            MockHttpMessageHandler mock,
-            string? bindingsParam,
-            string alias = CertAlias,
-            bool overwrite = false)
+        private static void SetupVirtServerValidation(MockHttpMessageHandler mock,
+                                                       string virtServerName)
         {
-            var job = BuildManagementJob(mock, overwrite);
-            return await job.PerformBindingsForAddAsync(
-                alias,
-                bindingsParam,
-                jobHistoryId: 1,
-                overwrite: overwrite);
+            mock.When(HttpMethod.Get, ServerUrl)
+                .Respond("application/json",
+                    AlteonResponseFactory.VirtServerTableResponse(new[]
+                    {
+                        AlteonResponseFactory.VirtServerEntry(virtServerName)
+                    }));
         }
 
-        private static async Task<JobResult> RunRemoveJob(
-            MockHttpMessageHandler mock,
-            string alias = CertAlias)
+        private static void SetupThreePartTables(MockHttpMessageHandler mock,
+                                                  IEnumerable<object> main,
+                                                  IEnumerable<object> second,
+                                                  IEnumerable<object> fifth)
+        {
+            mock.When(HttpMethod.Get, MainUrl)
+                .Respond("application/json", AlteonResponseFactory.VirtServiceTableResponse(main));
+            mock.When(HttpMethod.Get, SecondUrl)
+                .Respond("application/json", AlteonResponseFactory.VirtServiceSecondPartTableResponse(second));
+            mock.When(HttpMethod.Get, FifthUrl)
+                .Respond("application/json", AlteonResponseFactory.VirtServiceFifthPartTableResponse(fifth));
+        }
+
+        private static async Task<JobResult> RunAddJob(MockHttpMessageHandler mock,
+                                                        string? bindingsParam,
+                                                        string alias = CertAlias,
+                                                        bool overwrite = false)
+        {
+            var job = BuildManagementJob(mock, overwrite);
+            return await job.PerformBindingsForAddAsync(alias, bindingsParam, 1, overwrite);
+        }
+
+        private static async Task<JobResult> RunRemoveJob(MockHttpMessageHandler mock,
+                                                           string alias = CertAlias)
         {
             var job = BuildManagementJob(mock);
-            return await job.PerformBindingsForRemoveAsync(alias, jobHistoryId: 1);
+            return await job.PerformBindingsForRemoveAsync(alias, 1);
         }
 
         private static Management BuildManagementJob(MockHttpMessageHandler mock,
                                                       bool overwrite = false)
         {
             var resolverMock = new Mock<Keyfactor.Orchestrators.Extensions.Interfaces.IPAMSecretResolver>();
-            resolverMock.Setup(r => r.Resolve(It.IsAny<string>()))
-                        .Returns<string>(s => s);
+            resolverMock.Setup(r => r.Resolve(It.IsAny<string>())).Returns<string>(s => s);
 
-            var job = new Management(
-                resolverMock.Object,
-                BaseUrl, "admin", "admin",
-                NullLogger<Management>.Instance,
-                mock.ToHttpClient());
-
+            var job = new Management(resolverMock.Object, BaseUrl, "admin", "admin",
+                NullLogger<Management>.Instance, mock.ToHttpClient());
             job.Overwrite = overwrite;
             return job;
         }

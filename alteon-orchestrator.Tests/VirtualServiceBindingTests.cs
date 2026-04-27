@@ -85,11 +85,11 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Tests
         [Fact]
         public void Parse_ColonInVirtId_PortSegmentNonNumeric_ThrowsWithHelpfulMessage()
         {
-            // "my:virt:443" splits into virtId="my", portSegment="virt:443"
-            // Port validation catches this and surfaces the restriction note
+            // "my:virt:443" splits into virtId="my", portSegment="virt:443" (Split limit=2)
+            // Port validation catches the non-numeric segment and surfaces a clear message
             Action act = () => VirtualServiceBinding.Parse("my:virt:443");
             act.Should().Throw<ArgumentException>()
-               .WithMessage("*not supported*");
+               .WithMessage("*Service port must be a number*");
         }
 
         [Fact]
