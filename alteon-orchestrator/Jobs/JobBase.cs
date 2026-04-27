@@ -1,22 +1,23 @@
 ﻿// Copyright 2026 Keyfactor
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
-// 
+//
 //     http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+using System.Net.Http;
+using System.Reflection;
 using Keyfactor.Logging;
 using Keyfactor.Orchestrators.Extensions;
 using Keyfactor.Orchestrators.Extensions.Interfaces;
 using Microsoft.Extensions.Logging;
-using System.Reflection;
 
 namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 {
@@ -38,6 +39,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
 
         internal protected AlteonLoadBalancerClient aClient { get; set; }
 
+        // ── Production store initialization ───────────────────────────────────
 
         public void InitializeStore(InventoryJobConfiguration config)
         {
@@ -49,10 +51,10 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
             aClient = new AlteonLoadBalancerClient(ServerUrl, Username, Password, logger);
             logger.LogTrace($"Configuration complete for inventory job.  Server Url = {ServerUrl}");
             logger.MethodExit();
-
         }
 
-        public void InitializeStore(ManagementJobConfiguration config) {
+        public void InitializeStore(ManagementJobConfiguration config)
+        {
             logger.MethodEntry();
             LogPluginVersion();
             ServerUrl = config.CertificateStoreDetails.ClientMachine;
@@ -63,6 +65,20 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer.Jobs
             logger.LogTrace($"Configuration complete for management job.  Server Url = {ServerUrl}, Overwrite = {Overwrite}, Certificate Alias = {config.JobCertificate.Alias}");
             logger.MethodExit();
         }
+
+        // ── Testable store initialization (internal — used by unit tests) ─────
+        // Accepts a pre-built HttpClient so MockHttp can intercept API calls.
+
+        internal void InitializeStore(string serverUrl, string username,
+                                      string password, HttpClient httpClient)
+        {
+            ServerUrl = serverUrl;
+            Username = username;
+            Password = password;
+            aClient = new AlteonLoadBalancerClient(
+                serverUrl, username, password, logger, httpClient);
+        }
+
         protected void LogPluginVersion()
         {
             var targetAssembly = Assembly.GetExecutingAssembly();
