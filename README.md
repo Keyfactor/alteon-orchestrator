@@ -31,7 +31,9 @@
 
 ## Overview
 
-The Alteon Load Balancer integration allows you to manage certificates within the Alteon Load Balancer device.  It facilitates management of both the Alteon Device SSL certificate as well as entries in the trusted root store of the Alteon Load Balancer appliance.
+The Alteon Load Balancer integration allows you to manage certificates on a Radware Alteon Load Balancer appliance via its REST API. It supports inventory, enrollment (Add), and removal of certificates, and includes the ability to bind certificates to one or more virtual services as part of the enrollment workflow.
+
+The integration handles both non-SNI (direct) and SNI certificate bindings automatically, detecting the appropriate path based on the current virtual service configuration on the device. SSL policies for non-SNI bindings are created and managed by the integration using a consistent naming convention. Apply and Save operations are performed automatically after each change to ensure configuration changes are activated and persisted on the device.
 
 
 
@@ -56,7 +58,7 @@ To use the Alteon Load Balancer Universal Orchestrator extension, you **must** c
 
 
 
-
+TODO Overview is a required section
 
 
 
@@ -146,6 +148,25 @@ the Keyfactor Command Portal
 
    ![AlteonLB Custom Fields Tab](docsource/images/AlteonLB-custom-fields-store-type-dialog.png)
 
+
+
+
+   ##### Entry Parameters Tab
+
+   | Name | Display Name | Description | Type | Default Value | Entry has a private key | Adding an entry | Removing an entry | Reenrolling an entry |
+   | ---- | ------------ | ---- | ------------- | ----------------------- | ---------------- | ----------------- | ------------------- | ----------- |
+   | VirtualServiceBindings | Virtual Service Bindings | Comma-separated list of virtual service bindings in 'virtId:servicePort' format. Each binding identifies the virtual server ID and the service port to which the certificate should be bound. Example: '1:443' for a single binding, or '1:443,2:443,my-virt:8443' for multiple bindings. Returned during inventory to show which virtual services each certificate is currently bound to. | String |  | 🔲 Unchecked | 🔲 Unchecked | 🔲 Unchecked | 🔲 Unchecked |
+
+   The Entry Parameters tab should look like this:
+
+   ![AlteonLB Entry Parameters Tab](docsource/images/AlteonLB-entry-parameters-store-type-dialog.png)
+
+
+   ##### Virtual Service Bindings
+   Comma-separated list of virtual service bindings in 'virtId:servicePort' format. Each binding identifies the virtual server ID and the service port to which the certificate should be bound. Example: '1:443' for a single binding, or '1:443,2:443,my-virt:8443' for multiple bindings. Returned during inventory to show which virtual services each certificate is currently bound to.
+
+   ![AlteonLB Entry Parameter - VirtualServiceBindings](docsource/images/AlteonLB-entry-parameters-store-type-dialog-VirtualServiceBindings.png)
+   ![AlteonLB Entry Parameter - VirtualServiceBindings](docsource/images/AlteonLB-entry-parameters-store-type-dialog-VirtualServiceBindings-validation-options.png)
 
 
 
@@ -314,7 +335,11 @@ Now we can navigate to the Keyfactor platform and create the store type for the 
 
      ![Cert Store Types Advanced](/images/store-type-advanced.png)
 
-1) No changes are needed in the __Custom Fields__ and __Entry Parameters__ tabs.
+1) On the __Entry Parameters__ tab, add the following parameter:
+
+   | Name | Display Name | Type | Required for Add | Required for Remove | Description |
+   | ---- | ------------ | ---- | :--------------: | :-----------------: | ----------- |
+   | `VirtualServiceBindings` | Virtual Service Bindings | String | ❌ | ❌ | Comma-separated list of virtual service bindings in `virtId:servicePort` format. Specifies which virtual services the certificate should be bound to. See [Virtual Service Bindings](#virtual-service-bindings) for details. |
 
 #### Install the Extension on the Orchestrator
 
@@ -326,7 +351,7 @@ _The process for installing an extension for the universal orchestrator differs 
 
 1) Create a folder in the "extensions" folder of the Universal Orchestrator installation folder named "AlteonLB"
 
-     1) example: `C:\Program Files\Keyfactor\Keyfactor Orchestrator\\_AlteonLB_
+     1) example: `C:\Program Files\Keyfactor\Keyfactor Orchestrator\\_AlteonLB_`
 
 1) Copy the build output (if you compiled from source) or the contents of the zip file (if you downloaded the pre-compiled binaries) into this folder.
 
@@ -361,9 +386,26 @@ The steps to do this are:
 
 ---
 
-#### License
+### Virtual Service Bindings
 
-[Apache](https://apache.org/licenses/LICENSE-2.0)
+This integration supports binding certificates to one or more Alteon virtual services as part of the certificate enrollment (Add) workflow. The **Virtual Service Bindings** entry parameter controls which virtual services a certificate is bound to, and the inventory job returns this information so that Keyfactor Command maintains an accurate view of where each certificate is deployed.
+
+#### Entry Parameter Format
+
+The `VirtualServiceBindings` entry parameter accepts a comma-separated list of bindings, where each binding is expressed as:
+
+```
+virtId:servicePort
+```
+
+| Component | Description | Example |
+| --------- | ----------- | ------- |
+| `virtId` | The virtual server ID as configured on the Alteon device | `1`, `my-virt` |
+| `servicePort` | The TCP port of the HTTPS service on that virtual server | `443`, `8443` |
+
+**Examples:**
+
+```
 
 
 
