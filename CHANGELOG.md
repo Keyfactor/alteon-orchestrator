@@ -1,7 +1,7 @@
 1.3.0
   - Feature: support binding certificates to virtual appliance ID's
 	- add entry parameter for virtual appliance id(s)
-    - Now applying binding if virtual appliance ID is included in entry paramters
+    - Now applying binding if virtual appliance ID is included in entry parameters
 	- returning virtual appliance ID's as part of inventory
 	
 1.2.0
