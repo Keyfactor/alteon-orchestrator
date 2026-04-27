@@ -1,5 +1,3 @@
-﻿## Overview
-
 ## Setup and Configuration
 
 The high level steps required to configure the Alteon Load Balancer Orchestrator extension are:
@@ -61,7 +59,6 @@ _The process for installing an extension for the universal orchestrator differs 
 
 1) Start the Universal Orchestrator Service
 
-
 ### Create the certificate store
 
 Now add the certificate store that corresponds to an instance of the Alteon Load Balancer.
@@ -111,6 +108,7 @@ virtId:servicePort
 **Examples:**
 
 ```
+
 # Single binding
 1:443
 
@@ -188,3 +186,8 @@ During an inventory job, the integration scans all virtual services on the devic
 ### License
 
 [Apache](https://apache.org/licenses/LICENSE-2.0)
+
+## Overview
+
+TODO Overview is a required section
+
