@@ -23,7 +23,6 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Keyfactor.Logging;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 using RestSharp;
 using RestSharp.Authenticators;
 using RestSharp.Serializers.Json;
