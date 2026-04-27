@@ -124,7 +124,7 @@ virtId:servicePort
 
 The integration automatically detects how each virtual service is configured for SSL and handles the binding accordingly — no additional configuration is required.
 
-**Non-SNI (direct binding):** When a virtual service serves a single domain, SSL is terminated using a single certificate bound directly to that service. The integration sets the `SrvCert` field on the virtual service to the certificate being enrolled.
+**Non-SNI (direct binding):** When a virtual service serves a single domain, SSL is terminated using a single certificate bound directly to that service. The integration sets the `ServCert` field on the virtual service to the certificate being enrolled.
 
 **SNI (Server Name Indication):** When a virtual service hosts multiple domains on the same IP address and port, [SNI](https://www.cloudflare.com/learning/ssl/what-is-sni/) allows it to present the correct certificate to each client based on the domain name the client requests. In this configuration, certificates are managed through a *certificate group* rather than being bound directly to the virtual service. The integration detects this automatically by inspecting the virtual service configuration and adds the enrolled certificate to the appropriate group.
 
@@ -186,8 +186,4 @@ During an inventory job, the integration scans all virtual services on the devic
 ### License
 
 [Apache](https://apache.org/licenses/LICENSE-2.0)
-
-## Overview
-
-TODO Overview is a required section
 

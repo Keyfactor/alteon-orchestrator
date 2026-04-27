@@ -23,9 +23,9 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
 
     /// <summary>
     /// Represents a single virtual service binding: the combination of a virtual
-    /// server name and service port to which a certificate is (or should be) bound.
+    /// server name (virtId) and service port to which a certificate is (or should be) bound.
     ///
-    /// String format: "virtName:servicePort"  e.g. "webssl:443"
+    /// String format: "virtId:servicePort"  e.g. "webssl:443"
     /// List format (entry parameter): comma-separated e.g. "webssl:443,web:8443"
     /// </summary>
     public record VirtualServiceBinding(string VirtId, string ServicePort)
