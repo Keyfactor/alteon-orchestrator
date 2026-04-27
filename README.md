@@ -155,7 +155,7 @@ the Keyfactor Command Portal
 
    | Name | Display Name | Description | Type | Default Value | Entry has a private key | Adding an entry | Removing an entry | Reenrolling an entry |
    | ---- | ------------ | ---- | ------------- | ----------------------- | ---------------- | ----------------- | ------------------- | ----------- |
-   | VirtualServiceBindings | Virtual Service Bindings | Comma-separated list of virtual service bindings in 'virtId:servicePort' format. Each binding identifies the virtual server ID and the service port to which the certificate should be bound. Example: '1:443' for a single binding, or '1:443,2:443,my-virt:8443' for multiple bindings. Returned during inventory to show which virtual services each certificate is currently bound to. | String |  | 🔲 Unchecked | ✅ Checked | 🔲 Unchecked | 🔲 Unchecked |
+   | VirtualServiceBindings | Virtual Service Bindings | Comma-separated list of virtual service bindings in 'virtId:servicePort' format. Each binding identifies the virtual server ID and the service port to which the certificate should be bound. Example: '1:443' for a single binding, or '1:443,2:443,my-virt:8443' for multiple bindings. Returned during inventory to show which virtual services each certificate is currently bound to. | String |  | 🔲 Unchecked | 🔲 Unchecked | 🔲 Unchecked | 🔲 Unchecked |
 
    The Entry Parameters tab should look like this:
 
@@ -339,7 +339,7 @@ Now we can navigate to the Keyfactor platform and create the store type for the 
 
    | Name | Display Name | Type | Required for Add | Required for Remove | Description |
    | ---- | ------------ | ---- | :--------------: | :-----------------: | ----------- |
-   | `VirtualServiceBindings` | Virtual Service Bindings | String | ✅ | ❌ | Comma-separated list of virtual service bindings in `virtId:servicePort` format. Specifies which virtual services the certificate should be bound to. See [Virtual Service Bindings](#virtual-service-bindings) for details. |
+   | `VirtualServiceBindings` | Virtual Service Bindings | String | ❌ | ❌ | Comma-separated list of virtual service bindings in `virtId:servicePort` format. Specifies which virtual services the certificate should be bound to. See [Virtual Service Bindings](#virtual-service-bindings) for details. |
 
 #### Install the Extension on the Orchestrator
 

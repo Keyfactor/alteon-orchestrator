@@ -100,7 +100,7 @@ New-StoreType "AlteonLB" @'
       "DependsOn": "",
       "RequiredWhen": {
         "HasPrivateKey": false,
-        "OnAdd": true,
+        "OnAdd": false,
         "OnRemove": false,
         "OnReenrollment": false
       },
