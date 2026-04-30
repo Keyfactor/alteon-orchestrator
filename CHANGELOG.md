@@ -1,3 +1,9 @@
+1.3.0
+  - Feature: support binding certificates to virtual service ID's
+	- add entry parameter for virtual service id(s)
+    - Now applying binding if virtual service ID is included in entry parameters
+	- returning virtual service ID's as part of inventory
+	
 1.2.0
   - added apply and save actions after certificate operations
   
