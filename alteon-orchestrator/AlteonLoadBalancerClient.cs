@@ -228,24 +228,33 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             logger.MethodEntry();
             var url = string.Empty;
 
-            var existing = (await GetCertificatesById(alias, AlteonCertTypes.CERT_ONLY)).SlbNewSslCfgCertsTable;
-            if (existing.Count == 0)
+            // The Add job uploads cert and key as two separate entries on the device
+            // (CERT_ONLY + KEY_ONLY). We must delete both here to avoid orphaned private keys.
+            var existingCerts = (await GetCertificatesById(alias, AlteonCertTypes.CERT_ONLY)).SlbNewSslCfgCertsTable;
+            if (existingCerts.Count == 0)
             {
                 throw new Exception($"Certificate with alias {alias} not found.");
             }
+
+            // KEY_ONLY entry may not exist (e.g. CA / intermediate certs have no key), so
+            // a missing key is not an error — Concat handles the empty list gracefully.
+            var existingKeys = (await GetCertificatesById(alias, AlteonCertTypes.KEY_ONLY)).SlbNewSslCfgCertsTable;
+
+            var allEntries = existingCerts.Concat(existingKeys).ToList();
+
             try
             {
-                foreach (var c in existing)
+                foreach (var c in allEntries)
                 {
                     url = $"{Endpoints.CertificateRepository}/{c.ID}/{c.Type}";
                     var request = new RestRequest(url, Method.Delete);
                     var fullUri = _restClient.BuildUri(request);
-                    logger.LogTrace($"making request to remove certificate to uri {fullUri}");
-                    var response = await _restClient.DeleteAsync(request);
+                    logger.LogTrace($"making request to remove certificate/key entry to uri {fullUri}");
+                    var response = await _restClient.ExecuteAsync(request);
 
                     if (!response.IsSuccessful)
                     {
-                        throw new Exception($"Failed to remove certificate: {alias}", response.ErrorException);
+                        throw new Exception($"Failed to remove entry (alias={alias}, type={c.Type})", response.ErrorException);
                     }
                 }
                 await ApplyAndSave();
@@ -340,7 +349,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
 
             var applyRequest = new RestRequest(Endpoints.Config, Method.Post);
             applyRequest.AddQueryParameter("action", "apply");
-            applyRequest.AddHeader("Accept", "application/json");
+            applyRequest.AddHeader("Accept", "*/*");
 
             var fullUri = _restClient.BuildUri(applyRequest);
             logger.LogTrace($"making request to apply and save changes to {fullUri.ToString()}");
@@ -369,7 +378,7 @@ namespace Keyfactor.Extensions.Orchestrator.AlteonLoadBalancer
             logger.MethodEntry();
             var saveRequest = new RestRequest(Endpoints.Config, Method.Post);
             saveRequest.AddQueryParameter("action", "save");
-            saveRequest.AddHeader("Accept", "application/json");
+            saveRequest.AddHeader("Accept", "*/*");
 
             var fullUri = _restClient.BuildUri(saveRequest);
             logger.LogTrace($"making request to save changes to {fullUri.ToString()}");
